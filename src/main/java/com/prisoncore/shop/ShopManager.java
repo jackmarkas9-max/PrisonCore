@@ -225,6 +225,14 @@ public class ShopManager implements CommandExecutor, Listener {
         if (slot >= 0 && slot < TIERS.size()) {
             int currentTier = getPlayerTier(player);
             if (slot <= currentTier) {
+                // Tier 0 (wooden) is free — check if player actually has a pickaxe
+                if (slot == 0 && !hasAnyPickaxe(player)) {
+                    givePickaxe(player, 0);
+                    player.sendMessage("§aYou received a free Wooden Pickaxe!");
+                    player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 0.5f, 1.5f);
+                    reopenShop(player);
+                    return;
+                }
                 player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_NO, 0.5f, 1.0f);
                 return;
             }
@@ -315,6 +323,15 @@ public class ShopManager implements CommandExecutor, Listener {
                 if (meta != null && meta.hasDisplayName() && meta.getDisplayName().contains(item.displayName.replaceAll("§.", ""))) {
                     return true;
                 }
+            }
+        }
+        return false;
+    }
+
+    private boolean hasAnyPickaxe(Player player) {
+        for (ItemStack inv : player.getInventory().getContents()) {
+            if (inv != null && inv.getType().name().endsWith("_PICKAXE")) {
+                return true;
             }
         }
         return false;

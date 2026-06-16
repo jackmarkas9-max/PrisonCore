@@ -104,7 +104,7 @@ public class PrisonClock extends BukkitRunnable {
 
             String title = isNight ? "NIGHT - " + timeString : "DAY - " + timeString;
             bossBar.setTitle(title);
-            bossBar.setColor(isNight ? BarColor.PURPLE : BarColor.YELLOW);
+            bossBar.setColor(isNight ? BarColor.RED : BarColor.YELLOW);
 
             double progress;
             if (isNight) {
@@ -151,7 +151,7 @@ public class PrisonClock extends BukkitRunnable {
             Rank rank = plugin.getRankManager().getRank(player);
             if (isNight) {
                 if (rank == Rank.PRISONER || rank == Rank.GUARD) {
-                    player.addPotionEffect(new PotionEffect(PotionEffectType.DARKNESS, 100, 0, false, false, false));
+                    player.addPotionEffect(new PotionEffect(PotionEffectType.DARKNESS, 120, 1, true, true, true));
                 }
             } else {
                 if (player.hasPotionEffect(PotionEffectType.DARKNESS)) {
@@ -180,6 +180,8 @@ public class PrisonClock extends BukkitRunnable {
             if (rank != Rank.PRISONER) continue;
             Location loc = player.getLocation();
             if (!loc.getWorld().equals(pos1.getWorld())) continue;
+            // Skip if player is in a cell zone (can't escape from prison cell)
+            if (plugin.isInCellZone(loc)) continue;
             if (loc.getX() >= minX && loc.getX() <= maxX &&
                 loc.getY() >= minY && loc.getY() <= maxY &&
                 loc.getZ() >= minZ && loc.getZ() <= maxZ) {

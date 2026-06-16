@@ -199,12 +199,19 @@ public class PrisonListener implements Listener {
     @EventHandler
     public void onBlockPlace(BlockPlaceEvent event) {
         ItemStack item = event.getItemInHand();
-        if (item != null && item.getType() == Material.GREEN_CONCRETE && item.hasItemMeta()) {
-            ItemMeta meta = item.getItemMeta();
-            if (meta != null && meta.hasDisplayName() && meta.getDisplayName().contains("Hacking Tool")) {
-                event.setCancelled(true);
-                event.getPlayer().sendMessage("§cYou cannot place the Hacking Tool on the ground!");
-            }
+        if (item == null || !item.hasItemMeta()) return;
+        ItemMeta meta = item.getItemMeta();
+        if (meta == null || !meta.hasDisplayName()) return;
+        String name = meta.getDisplayName();
+        if (item.getType() == Material.GREEN_CONCRETE && name.contains("Hacking Tool")) {
+            event.setCancelled(true);
+            event.getPlayer().sendMessage("§cYou cannot place the Hacking Tool on the ground!");
+        } else if (item.getType() == Material.IRON_BARS && name.contains("Handcuffs")) {
+            event.setCancelled(true);
+            event.getPlayer().sendMessage("§cYou cannot place Handcuffs on the ground!");
+        } else if (item.getType() == Material.TRIPWIRE_HOOK && name.contains("Key")) {
+            event.setCancelled(true);
+            event.getPlayer().sendMessage("§cYou cannot place the Key on the ground!");
         }
     }
 
