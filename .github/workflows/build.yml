@@ -22,3 +22,9 @@ jobs:
         run: gradle wrapper --gradle-version=8.6
       - name: Build with Gradle
         run: ./gradlew build
+
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: PrisonCore-Jar
+          path: build/libs/*.jar
