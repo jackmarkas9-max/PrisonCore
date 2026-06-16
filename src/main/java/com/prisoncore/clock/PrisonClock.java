@@ -91,7 +91,8 @@ public class PrisonClock extends BukkitRunnable {
                 long time = 13000 + (nightProgress * 11000L / nightLength);
                 world.setTime(time % 24000);
             } else {
-                long time = cycleTick * 13000L / dayLength;
+                // Cap at 12999 so day never shows 19:00 (which is night)
+                long time = Math.min(cycleTick * 13000L / dayLength, 12999);
                 world.setTime(time % 24000);
             }
 

@@ -192,14 +192,9 @@ public class PrisonListener implements Listener {
         // Cell zone check for PCI
         if (rank == Rank.PCI) {
             if (plugin.isInCellZone(player.getLocation())) {
-                plugin.getRankManager().setRank(player, Rank.PRISONER);
                 player.getInventory().clear();
-                Location prisonSpawn = plugin.getRandomSpawnLocation("spawns.prison");
-                if (prisonSpawn != null) {
-                    player.teleport(prisonSpawn);
-                }
+                plugin.getRankManager().setRank(player, Rank.PRISONER);
                 player.sendTitle("§c§lARRESTED!", "§7You entered a cell zone and lost everything!", 10, 70, 20);
-                plugin.getEconomyManager().updateScoreboard(player);
             }
         }
     }

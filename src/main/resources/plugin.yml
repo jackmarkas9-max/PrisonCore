@@ -53,10 +53,6 @@ commands:
     usage: /tpdeny
 
   # Admin Commands
-  rank:
-    description: Manage player ranks.
-    usage: /rank give <player> <Admin|Guard|PCI|Prisoner>
-    permission: prisoncore.admin
   give:
     description: Give money to a player.
     usage: /give money <player> <amount>
@@ -121,3 +117,6 @@ commands:
     description: Show setup requirements status.
     usage: /reqs
     permission: prisoncore.admin
+  darkshop:
+    description: Open the dark shop (PCI & Prisoners only).
+    usage: /darkshop

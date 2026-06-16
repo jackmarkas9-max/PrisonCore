@@ -128,6 +128,9 @@ public class RankManager {
         if (plugin.getEconomyManager() != null) {
             plugin.getEconomyManager().updateScoreboard(player);
         }
+
+        // Teleport to rank spawn zone
+        plugin.teleportPlayerToRankSpawn(player);
     }
 
     private void showRoleCard(Player player, Rank rank) {
