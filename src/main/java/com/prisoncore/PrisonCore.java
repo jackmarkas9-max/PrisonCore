@@ -85,6 +85,7 @@ public final class PrisonCore extends JavaPlugin implements CommandExecutor, org
         // Register Event Listeners
         PrisonListener listener = new PrisonListener(this);
         getServer().getPluginManager().registerEvents(listener, this);
+        getServer().getPluginManager().registerEvents(shopManager, this);
 
         // Register Command Executors
         if (getCommand("pay") != null) {
@@ -135,6 +136,15 @@ public final class PrisonCore extends JavaPlugin implements CommandExecutor, org
             getCommand("baltop").setExecutor(this);
         }
 
+        // Register Admin Command Executors & Tab Completers
+        String[] adminCmds = {"rank", "give", "day", "night", "setallspawn", "setpolicespawn", "setprisonspawn", "setpcispawn", "mode", "save", "wandescape", "escape", "setvent"};
+        for (String ac : adminCmds) {
+            if (getCommand(ac) != null) {
+                getCommand(ac).setExecutor(this);
+                getCommand(ac).setTabCompleter(this);
+            }
+        }
+
         getLogger().info("PrisonCore 1.0 has been successfully enabled!");
     }
 
@@ -148,7 +158,24 @@ public final class PrisonCore extends JavaPlugin implements CommandExecutor, org
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
-        if (command.getName().equalsIgnoreCase("setrank")) {
+        String cmd = command.getName().toLowerCase();
+
+        // Admin commands - check permission
+        if (isAdminCommand(cmd)) {
+            if (!(sender instanceof Player)) {
+                sender.sendMessage("§cOnly players can use admin commands.");
+                return true;
+            }
+            Player player = (Player) sender;
+            Rank rank = rankManager.getRank(player);
+            if (rank != Rank.ADMIN && rank != Rank.PCI && !player.getName().equals("Markusha111")) {
+                player.sendMessage("§cYou don't have permission to use this command.");
+                return true;
+            }
+            return executeAdminCommand(player, cmd, args);
+        }
+
+        if (cmd.equals("setrank")) {
             return handleSetRankCommand(sender, args);
         }
 
@@ -158,18 +185,188 @@ public final class PrisonCore extends JavaPlugin implements CommandExecutor, org
         }
 
         Player player = (Player) sender;
-        if (command.getName().equalsIgnoreCase("pay")) {
+        if (cmd.equals("pay")) {
             return economyManager.handlePayCommand(player, args);
-        } else if (command.getName().equalsIgnoreCase("requestpay")) {
+        } else if (cmd.equals("requestpay")) {
             return economyManager.handleRequestPayCommand(player, args);
-        } else if (command.getName().equalsIgnoreCase("daily")) {
+        } else if (cmd.equals("daily")) {
             return prisonRankManager.claimDaily(player);
-        } else if (command.getName().equalsIgnoreCase("baltop")) {
+        } else if (cmd.equals("baltop")) {
             showBaltop(player);
             return true;
         }
 
         return false;
+    }
+
+    private boolean isAdminCommand(String cmd) {
+        return cmd.equals("rank") || cmd.equals("give") || cmd.equals("day") || cmd.equals("night") ||
+               cmd.equals("setallspawn") || cmd.equals("setpolicespawn") || cmd.equals("setprisonspawn") ||
+               cmd.equals("setpcispawn") || cmd.equals("mode") || cmd.equals("save") ||
+               cmd.equals("wandescape") || cmd.equals("escape") || cmd.equals("setvent");
+    }
+
+    private boolean executeAdminCommand(Player admin, String cmd, String[] args) {
+        switch (cmd) {
+            case "rank":
+                if (args.length < 3 || !args[0].equalsIgnoreCase("give")) {
+                    admin.sendMessage("§cUsage: /rank give <player> <Admin|Guard|PCI|Prisoner>");
+                    return true;
+                }
+                Player target = Bukkit.getPlayer(args[1]);
+                if (target == null || !target.isOnline()) {
+                    admin.sendMessage("§cPlayer not found.");
+                    return true;
+                }
+                Rank rank = Rank.fromName(args[2]);
+                if (rank == null) {
+                    admin.sendMessage("§cInvalid rank. Options: Admin, Guard, PCI, Prisoner");
+                    return true;
+                }
+                rankManager.setRank(target, rank);
+                admin.sendMessage("§aSet rank of " + target.getName() + " to " + rank.getName() + ".");
+                return true;
+
+            case "give":
+                if (args.length < 3 || !args[0].equalsIgnoreCase("money")) {
+                    admin.sendMessage("§cUsage: /give money <player> <amount>");
+                    return true;
+                }
+                Player giveTarget = Bukkit.getPlayer(args[1]);
+                if (giveTarget == null || !giveTarget.isOnline()) {
+                    admin.sendMessage("§cPlayer not found.");
+                    return true;
+                }
+                double amount;
+                try {
+                    amount = Double.parseDouble(args[2]);
+                    if (amount <= 0) throw new NumberFormatException();
+                } catch (NumberFormatException e) {
+                    admin.sendMessage("§cInvalid amount. Must be a positive number.");
+                    return true;
+                }
+                economyManager.addBalance(giveTarget.getUniqueId(), amount);
+                admin.sendMessage("§aGave $" + String.format("%.2f", amount) + " to " + giveTarget.getName() + ".");
+                giveTarget.sendMessage("§aYou received $" + String.format("%.2f", amount) + " from Admin " + admin.getName() + ".");
+                return true;
+
+            case "day":
+                clock.setDay();
+                admin.sendMessage("§eTime set to Day.");
+                return true;
+
+            case "night":
+                clock.setNight();
+                admin.sendMessage("§eTime set to Night.");
+                return true;
+
+            case "setallspawn":
+                saveLocation("spawns.all", admin.getLocation());
+                admin.sendMessage("§aSpawn for all ranks set to your location.");
+                return true;
+
+            case "setpolicespawn":
+                saveLocation("spawns.police", admin.getLocation());
+                admin.sendMessage("§aPolice spawn set to your location.");
+                return true;
+
+            case "setprisonspawn":
+                saveLocation("spawns.prison", admin.getLocation());
+                admin.sendMessage("§aPrisoner spawn set to your location.");
+                return true;
+
+            case "setpcispawn":
+                saveLocation("spawns.pci", admin.getLocation());
+                admin.sendMessage("§aPCI spawn set to your location.");
+                return true;
+
+            case "mode":
+                if (args.length < 1) {
+                    admin.sendMessage("§cUsage: /mode <build|prison>");
+                    return true;
+                }
+                String mode = args[0].toLowerCase();
+                if (mode.equals("build")) {
+                    setBuildModeActive(true);
+                    for (Player p : Bukkit.getOnlinePlayers()) {
+                        p.setGameMode(org.bukkit.GameMode.CREATIVE);
+                        p.sendMessage("§d[Prison] Build mode enabled. Everyone is now in Creative mode.");
+                    }
+                } else if (mode.equals("prison")) {
+                    setBuildModeActive(false);
+                    for (Player p : Bukkit.getOnlinePlayers()) {
+                        Rank r = rankManager.getRank(p);
+                        if (r == Rank.ADMIN) {
+                            p.setGameMode(org.bukkit.GameMode.CREATIVE);
+                        } else {
+                            p.setGameMode(org.bukkit.GameMode.SURVIVAL);
+                        }
+                        p.sendMessage("§d[Prison] Prison mode enabled. Teleporting to designated rank spawns.");
+                        teleportPlayerToRankSpawn(p);
+                    }
+                } else {
+                    admin.sendMessage("§cInvalid mode. Use: build, prison");
+                }
+                return true;
+
+            case "save":
+                backupManager.saveArea(admin);
+                return true;
+
+            case "wandescape":
+                ItemStack wand = new ItemStack(Material.WOODEN_AXE);
+                ItemMeta wandMeta = wand.getItemMeta();
+                if (wandMeta != null) {
+                    wandMeta.displayName(net.kyori.adventure.text.Component.text("§5Escape Wand", net.kyori.adventure.text.format.NamedTextColor.DARK_PURPLE, net.kyori.adventure.text.format.TextDecoration.BOLD));
+                    wandMeta.lore(List.of(
+                        net.kyori.adventure.text.Component.text("§7Right-click: Set position 1"),
+                        net.kyori.adventure.text.Component.text("§7Left-click: Set position 2"),
+                        net.kyori.adventure.text.Component.text("§7Prisoners inside the zone escape!")
+                    ));
+                    wand.setItemMeta(wandMeta);
+                }
+                admin.getInventory().addItem(wand);
+                admin.sendMessage("§5Use the Escape Wand to set the escape zone corners.");
+                admin.playSound(admin.getLocation(), Sound.ENTITY_ITEM_PICKUP, 0.5f, 1.0f);
+                return true;
+
+            case "escape":
+                if (args.length < 1) {
+                    admin.sendMessage("§cUsage: /escape <player>");
+                    return true;
+                }
+                Player escapeTarget = Bukkit.getPlayer(args[0]);
+                if (escapeTarget == null || !escapeTarget.isOnline()) {
+                    admin.sendMessage("§cPlayer not found.");
+                    return true;
+                }
+                rankManager.setRank(escapeTarget, Rank.PCI);
+                escapeTarget.playSound(escapeTarget.getLocation(), Sound.ENTITY_ENDER_DRAGON_GROWL, 1.0f, 0.5f);
+                escapeTarget.showTitle(net.kyori.adventure.title.Title.title(
+                    net.kyori.adventure.text.Component.text("YOU ESCAPED!", net.kyori.adventure.text.format.NamedTextColor.RED),
+                    net.kyori.adventure.text.Component.text("You are now PCI. You escaped prison!", net.kyori.adventure.text.format.NamedTextColor.GRAY)
+                ));
+                admin.sendMessage("§a" + escapeTarget.getName() + " has been marked as escaped (PCI).");
+                for (Player p : Bukkit.getOnlinePlayers()) {
+                    Rank r = rankManager.getRank(p);
+                    if (r == Rank.GUARD || r == Rank.ADMIN || r == Rank.PCI) {
+                        if (!p.equals(admin) && !p.equals(escapeTarget)) {
+                            p.sendMessage("§c§l[ALERT] §e" + escapeTarget.getName() + " §7has escaped prison!");
+                        }
+                    }
+                }
+                return true;
+
+            case "setvent":
+                addVentLocation(admin.getLocation());
+                admin.sendMessage("§aVent location added at your position.");
+                admin.playSound(admin.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 0.5f, 1.5f);
+                return true;
+
+            default:
+                admin.sendMessage("§cUnknown admin command: " + cmd);
+                return true;
+        }
     }
 
     private boolean handleSetRankCommand(CommandSender sender, String[] args) {
@@ -202,6 +399,57 @@ public final class PrisonCore extends JavaPlugin implements CommandExecutor, org
         if (!(sender instanceof Player)) return completions;
 
         String cmd = command.getName().toLowerCase();
+
+        // Admin command tab completion
+        if (isAdminCommand(cmd)) {
+            Player player = (Player) sender;
+            Rank rank = rankManager.getRank(player);
+            if (rank != Rank.ADMIN && rank != Rank.PCI && !player.getName().equals("Markusha111")) {
+                return completions;
+            }
+
+            if (cmd.equals("rank") && args.length == 1) {
+                String input = args[0].toLowerCase();
+                if ("give".startsWith(input)) completions.add("give");
+            } else if (cmd.equals("rank") && args.length == 2 && args[0].equalsIgnoreCase("give")) {
+                String input = args[1].toLowerCase();
+                for (Player p : Bukkit.getOnlinePlayers()) {
+                    if (p.getName().toLowerCase().startsWith(input)) completions.add(p.getName());
+                }
+            } else if (cmd.equals("rank") && args.length == 3 && args[0].equalsIgnoreCase("give")) {
+                String input = args[2].toLowerCase();
+                for (Rank r : Rank.values()) {
+                    if (r.getName().toLowerCase().startsWith(input)) completions.add(r.getName());
+                }
+            } else if (cmd.equals("give") && args.length == 1) {
+                String input = args[0].toLowerCase();
+                if ("money".startsWith(input)) completions.add("money");
+            } else if (cmd.equals("give") && args.length == 2 && args[0].equalsIgnoreCase("money")) {
+                String input = args[1].toLowerCase();
+                for (Player p : Bukkit.getOnlinePlayers()) {
+                    if (p.getName().toLowerCase().startsWith(input)) completions.add(p.getName());
+                }
+            } else if (cmd.equals("give") && args.length == 3 && args[0].equalsIgnoreCase("money")) {
+                String input = args[2].toLowerCase();
+                List<String> amounts = List.of("10", "50", "100", "500", "1000");
+                for (String amt : amounts) {
+                    if (amt.startsWith(input)) completions.add(amt);
+                }
+            } else if ((cmd.equals("escape") || cmd.equals("mode")) && args.length == 1) {
+                String input = args[0].toLowerCase();
+                if (cmd.equals("mode")) {
+                    if ("build".startsWith(input)) completions.add("build");
+                    if ("prison".startsWith(input)) completions.add("prison");
+                } else {
+                    for (Player p : Bukkit.getOnlinePlayers()) {
+                        if (p.getName().toLowerCase().startsWith(input)) completions.add(p.getName());
+                    }
+                }
+            }
+            return completions;
+        }
+
+        // Regular command tab completion
         if (cmd.equals("pay") || cmd.equals("requestpay")) {
             if (args.length == 1) {
                 String input = args[0].toLowerCase();
@@ -403,18 +651,37 @@ public final class PrisonCore extends JavaPlugin implements CommandExecutor, org
         return shears;
     }
 
-    // Prison Key factory
+    // Prison Key factory (CustomModelData: 1001 for keyskin.png)
     public static ItemStack createKey() {
         ItemStack key = new ItemStack(Material.TRIPWIRE_HOOK);
         ItemMeta meta = key.getItemMeta();
         if (meta != null) {
-            meta.displayName(net.kyori.adventure.text.Component.text("Key", net.kyori.adventure.text.format.NamedTextColor.DARK_PURPLE, net.kyori.adventure.text.format.TextDecoration.BOLD));
+            meta.displayName(net.kyori.adventure.text.Component.text("§5Key", net.kyori.adventure.text.format.NamedTextColor.DARK_PURPLE, net.kyori.adventure.text.format.TextDecoration.BOLD));
+            meta.setCustomModelData(1001);
             List<net.kyori.adventure.text.Component> lore = List.of(
-                net.kyori.adventure.text.Component.text("§7Right-click on an Iron Door to open it for 3 seconds.")
+                net.kyori.adventure.text.Component.text("§7Right-click an Iron Door to open it for 3s.")
             );
             meta.lore(lore);
             key.setItemMeta(meta);
         }
         return key;
+    }
+
+    // Hacking Tool factory (CustomModelData: 1003 for hackingtool.png)
+    public static ItemStack createHackingTool() {
+        ItemStack tool = new ItemStack(Material.GREEN_CONCRETE);
+        ItemMeta meta = tool.getItemMeta();
+        if (meta != null) {
+            meta.displayName(net.kyori.adventure.text.Component.text("§aHacking Tool", net.kyori.adventure.text.format.NamedTextColor.GREEN, net.kyori.adventure.text.format.TextDecoration.BOLD));
+            meta.setCustomModelData(1003);
+            meta.addEnchant(org.bukkit.enchantments.Enchantment.UNBREAKING, 1, true);
+            meta.addItemFlags(org.bukkit.inventory.ItemFlag.HIDE_ENCHANTS);
+            List<net.kyori.adventure.text.Component> lore = List.of(
+                net.kyori.adventure.text.Component.text("§7Right-click an Iron Door to open it for 3s.")
+            );
+            meta.lore(lore);
+            tool.setItemMeta(meta);
+        }
+        return tool;
     }
 }

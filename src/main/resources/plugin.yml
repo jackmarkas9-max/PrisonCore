@@ -14,8 +14,8 @@ commands:
     description: Set a player's rank (works from console).
     usage: /setrank <player> <Admin|Guard|PCI|Prisoner>
   shop:
-    description: Open the pickaxe shop.
-    usage: /shop [buy <name>]
+    description: Open the shop GUI.
+    usage: /shop
   gang:
     description: Gang management.
     usage: /gang <create|invite|join|leave|disband|info|balance|deposit|chat>
@@ -51,3 +51,57 @@ commands:
   tpdeny:
     description: Deny a teleport request.
     usage: /tpdeny
+
+  # Admin Commands
+  rank:
+    description: Manage player ranks.
+    usage: /rank give <player> <Admin|Guard|PCI|Prisoner>
+    permission: prisoncore.admin
+  give:
+    description: Give money to a player.
+    usage: /give money <player> <amount>
+    permission: prisoncore.admin
+  day:
+    description: Set time to day.
+    usage: /day
+    permission: prisoncore.admin
+  night:
+    description: Set time to night.
+    usage: /night
+    permission: prisoncore.admin
+  setallspawn:
+    description: Set the default spawn.
+    usage: /setallspawn
+    permission: prisoncore.admin
+  setpolicespawn:
+    description: Set the police spawn.
+    usage: /setpolicespawn
+    permission: prisoncore.admin
+  setprisonspawn:
+    description: Set the prison spawn.
+    usage: /setprisonspawn
+    permission: prisoncore.admin
+  setPCIspawn:
+    description: Set the PCI spawn.
+    usage: /setPCIspawn
+    permission: prisoncore.admin
+  mode:
+    description: Toggle build/prison mode.
+    usage: /mode <build|prison>
+    permission: prisoncore.admin
+  save:
+    description: Backup blocks around you.
+    usage: /save
+    permission: prisoncore.admin
+  wandescape:
+    description: Get the escape zone wand.
+    usage: /wandescape
+    permission: prisoncore.admin
+  escape:
+    description: Force-escape a player.
+    usage: /escape <player>
+    permission: prisoncore.admin
+  setvent:
+    description: Add a vent at your location.
+    usage: /setvent
+    permission: prisoncore.admin

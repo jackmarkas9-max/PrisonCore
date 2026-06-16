@@ -107,8 +107,13 @@ public class RankManager {
             }
         }
 
-        // Give Key if Guard, PCI or Admin
-        if (rank == Rank.GUARD || rank == Rank.PCI || rank == Rank.ADMIN) {
+        // Give Key to Guard/Admin, Hacking Tool to PCI
+        if (rank == Rank.PCI) {
+            if (!hasHackingTool(player)) {
+                player.getInventory().addItem(PrisonCore.createHackingTool());
+                player.sendMessage("§a[Hacking Tool] You have been issued a Hacking Tool!");
+            }
+        } else if (rank == Rank.GUARD || rank == Rank.ADMIN) {
             if (!hasKey(player)) {
                 player.getInventory().addItem(PrisonCore.createKey());
                 player.sendMessage("§5[Key] You have been issued a Prison Key!");
@@ -160,7 +165,19 @@ public class RankManager {
         for (org.bukkit.inventory.ItemStack item : player.getInventory().getContents()) {
             if (item != null && item.getType() == org.bukkit.Material.TRIPWIRE_HOOK) {
                 org.bukkit.inventory.meta.ItemMeta meta = item.getItemMeta();
-                if (meta != null && meta.hasDisplayName() && meta.getDisplayName().contains("Key")) {
+                if (meta != null && meta.hasDisplayName() && meta.getDisplayName().replaceAll("§.", "").contains("Key")) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private boolean hasHackingTool(Player player) {
+        for (org.bukkit.inventory.ItemStack item : player.getInventory().getContents()) {
+            if (item != null && item.getType() == org.bukkit.Material.GREEN_CONCRETE) {
+                org.bukkit.inventory.meta.ItemMeta meta = item.getItemMeta();
+                if (meta != null && meta.hasDisplayName() && meta.getDisplayName().replaceAll("§.", "").contains("Hacking Tool")) {
                     return true;
                 }
             }

@@ -20,18 +20,33 @@ public class PrisonClock extends BukkitRunnable {
     private boolean wasNight = false;
     private int effectUpdateCounter = 0;
 
+    private int dayLength;
+    private int nightLength;
+    private int cycleTick = 0;
+    private boolean isNight = false;
+
     public PrisonClock(PrisonCore plugin) {
         this.plugin = plugin;
-        this.bossBar = Bukkit.createBossBar(
-            "DAY - 06:00",
-            BarColor.YELLOW,
-            BarStyle.SOLID
-        );
+        this.bossBar = Bukkit.createBossBar("DAY - 06:00", BarColor.YELLOW, BarStyle.SOLID);
         this.bossBar.setVisible(true);
 
         for (Player player : Bukkit.getOnlinePlayers()) {
             bossBar.addPlayer(player);
         }
+
+        dayLength = plugin.getConfig().getInt("day-length", 12000);
+        nightLength = plugin.getConfig().getInt("night-length", 6000);
+
+        World world = getWorld();
+        if (world != null) {
+            world.setGameRule(org.bukkit.GameRule.DO_DAYLIGHT_CYCLE, false);
+            world.setTime(0);
+        }
+    }
+
+    private World getWorld() {
+        if (Bukkit.getWorlds().isEmpty()) return null;
+        return Bukkit.getWorlds().get(0);
     }
 
     public void addPlayer(Player player) {
@@ -44,27 +59,47 @@ public class PrisonClock extends BukkitRunnable {
 
     public void cleanUp() {
         bossBar.removeAll();
+        World world = getWorld();
+        if (world != null) {
+            world.setGameRule(org.bukkit.GameRule.DO_DAYLIGHT_CYCLE, true);
+        }
     }
 
     @Override
     public void run() {
         try {
-            if (Bukkit.getWorlds().isEmpty()) return;
-            World world = Bukkit.getWorlds().get(0);
+            World world = getWorld();
             if (world == null) return;
 
-            long time = world.getTime() % 24000;
-            boolean isNight = time >= 13000;
+            cycleTick++;
 
-            if (isNight && !wasNight) {
+            int totalCycle = dayLength + nightLength;
+            if (cycleTick > totalCycle) cycleTick = 1;
+
+            boolean nowNight = cycleTick > dayLength;
+
+            if (nowNight && !wasNight) {
                 handleNightTransition();
-            } else if (!isNight && wasNight) {
+                world.setTime(13000);
+            } else if (!nowNight && wasNight) {
                 handleDayTransition();
+                world.setTime(0);
             }
-            wasNight = isNight;
 
-            long hours = (time / 1000 + 6) % 24;
-            long minutes = (time % 1000) * 60 / 1000;
+            if (nowNight) {
+                int nightProgress = cycleTick - dayLength;
+                long time = 13000 + (nightProgress * 11000L / nightLength);
+                world.setTime(time % 24000);
+            } else {
+                long time = cycleTick * 13000L / dayLength;
+                world.setTime(time % 24000);
+            }
+
+            wasNight = nowNight;
+            isNight = nowNight;
+
+            long hours = (world.getTime() / 1000 + 6) % 24;
+            long minutes = (world.getTime() % 1000) * 60 / 1000;
             String timeString = String.format("%02d:%02d", hours, minutes);
 
             String title = isNight ? "NIGHT - " + timeString : "DAY - " + timeString;
@@ -73,9 +108,9 @@ public class PrisonClock extends BukkitRunnable {
 
             double progress;
             if (isNight) {
-                progress = (double) (time - 13000) / 11000.0;
+                progress = (double) (cycleTick - dayLength) / (double) nightLength;
             } else {
-                progress = (double) time / 13000.0;
+                progress = (double) cycleTick / (double) dayLength;
             }
             bossBar.setProgress(Math.min(1.0, Math.max(0.0, progress)));
 
@@ -95,7 +130,7 @@ public class PrisonClock extends BukkitRunnable {
         for (Player player : Bukkit.getOnlinePlayers()) {
             player.showTitle(net.kyori.adventure.title.Title.title(
                 net.kyori.adventure.text.Component.text("NIGHT HAS FALLEN", net.kyori.adventure.text.format.NamedTextColor.RED),
-                net.kyori.adventure.text.Component.text("Guards and Prisoners receive Darkness effect", net.kyori.adventure.text.format.NamedTextColor.GRAY)
+                net.kyori.adventure.text.Component.text("Prisoners can now mine! Darkness effect active.", net.kyori.adventure.text.format.NamedTextColor.GRAY)
             ));
             player.playSound(player.getLocation(), Sound.ENTITY_WOLF_HOWL, 1.0f, 0.8f);
         }
@@ -105,7 +140,7 @@ public class PrisonClock extends BukkitRunnable {
         for (Player player : Bukkit.getOnlinePlayers()) {
             player.showTitle(net.kyori.adventure.title.Title.title(
                 net.kyori.adventure.text.Component.text("DAWN BREAKS", net.kyori.adventure.text.format.NamedTextColor.GOLD),
-                net.kyori.adventure.text.Component.text("Darkness is removed, cell rules apply", net.kyori.adventure.text.format.NamedTextColor.GRAY)
+                net.kyori.adventure.text.Component.text("Darkness removed. Cell rules apply.", net.kyori.adventure.text.format.NamedTextColor.GRAY)
             ));
             player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 0.8f, 1.2f);
         }
@@ -165,10 +200,20 @@ public class PrisonClock extends BukkitRunnable {
     }
 
     public boolean isNightNow() {
-        if (Bukkit.getWorlds().isEmpty()) return false;
-        World world = Bukkit.getWorlds().get(0);
-        if (world == null) return false;
-        long time = world.getTime() % 24000;
-        return time >= 13000;
+        return isNight;
+    }
+
+    public void setNight() {
+        cycleTick = dayLength + 1;
+        wasNight = false;
+        World world = getWorld();
+        if (world != null) world.setTime(13000);
+    }
+
+    public void setDay() {
+        cycleTick = 1;
+        wasNight = true;
+        World world = getWorld();
+        if (world != null) world.setTime(0);
     }
 }

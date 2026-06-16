@@ -1,11 +1,14 @@
 # PrisonCore Configuration
 
+# Day/Night Cycle Lengths (in ticks, 20 ticks = 1 second)
+day-length: 12000
+night-length: 6000
+
 # Backup Settings
 backup:
-  # The radius of the bounding box centered around the player for block backups (@save)
   radius: 25
 
-# Spawn Locations (Will be populated via @setallspawn, @setpolicespawn, @setprisonspawn, @setPCIspawn)
+# Spawn Locations (Populated via @setallspawn, @setpolicespawn, @setprisonspawn, @setPCIspawn)
 spawns:
   all: null
   police: null

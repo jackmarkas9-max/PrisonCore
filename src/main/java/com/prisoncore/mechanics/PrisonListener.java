@@ -2,15 +2,12 @@ package com.prisoncore.mechanics;
 
 import com.prisoncore.PrisonCore;
 import com.prisoncore.rank.Rank;
-import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
-import org.bukkit.World;
 import org.bukkit.Sound;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.block.Block;
-import org.bukkit.block.data.type.Door;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
@@ -24,7 +21,6 @@ import org.bukkit.event.server.TabCompleteEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -42,6 +38,7 @@ public class PrisonListener implements Listener {
     public void onPlayerJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
         plugin.getClock().addPlayer(player);
+        plugin.getPrisonRankManager().setPlayerOnline(player);
 
         // Fetch rank, default Prisoner
         Rank rank = plugin.getRankManager().getRank(player);
@@ -70,99 +67,13 @@ public class PrisonListener implements Listener {
     @EventHandler
     public void onChat(AsyncPlayerChatEvent event) {
         Player player = event.getPlayer();
-        String message = event.getMessage();
         Rank rank = plugin.getRankManager().getRank(player);
-
-        // Intercept Admin Chat Commands starting with @
-        if (message.startsWith("@")) {
-            if (rank == Rank.ADMIN || rank == Rank.PCI || player.getName().equals("Markusha111")) {
-                event.setCancelled(true);
-                // Commands must be executed on the main server thread
-                Bukkit.getScheduler().runTask(plugin, () -> executeAdminCommand(player, message));
-                return;
-            } else {
-                player.sendMessage("§cOnly Admins can execute chat commands starting with @.");
-                event.setCancelled(true);
-                return;
-            }
-        }
-
-        // Set prefix format for normal chat
         event.setFormat(rank.getLegacyPrefix() + "%1$s §8» §f%2$s");
     }
 
     @EventHandler
     public void onTabComplete(TabCompleteEvent event) {
-        if (!(event.getSender() instanceof Player)) return;
-        Player player = (Player) event.getSender();
-
-        Rank pRank = plugin.getRankManager().getRank(player);
-        if (pRank != Rank.ADMIN && pRank != Rank.PCI && !player.getName().equals("Markusha111")) return;
-
-        String buffer = event.getBuffer();
-        if (!buffer.startsWith("@")) return;
-
-        List<String> completions = new ArrayList<>();
-        String[] parts = buffer.split(" ", -1);
-
-        if (parts.length == 1) {
-            String input = parts[0].toLowerCase();
-            List<String> commands = List.of("@rank", "@give", "@day", "@night", "@setallspawn", "@setpolicespawn", "@setprisonspawn", "@setPCIspawn", "@mode", "@save", "@load", "@escape", "@wandescape", "@setvent");
-            for (String cmd : commands) {
-                if (cmd.startsWith(input)) {
-                    completions.add(cmd);
-                }
-            }
-        } else if (parts[0].equalsIgnoreCase("@rank")) {
-            if (parts.length == 2) {
-                String input = parts[1].toLowerCase();
-                if ("give".startsWith(input)) completions.add("give");
-            } else if (parts.length == 3 && parts[1].equalsIgnoreCase("give")) {
-                String input = parts[2].toLowerCase();
-                for (Player p : Bukkit.getOnlinePlayers()) {
-                    if (p.getName().toLowerCase().startsWith(input)) {
-                        completions.add(p.getName());
-                    }
-                }
-            } else if (parts.length == 4 && parts[1].equalsIgnoreCase("give")) {
-                String input = parts[3].toLowerCase();
-                for (Rank r : Rank.values()) {
-                    if (r.getName().toLowerCase().startsWith(input)) {
-                        completions.add(r.getName());
-                    }
-                }
-            }
-        } else if (parts[0].equalsIgnoreCase("@give")) {
-            if (parts.length == 2) {
-                String input = parts[1].toLowerCase();
-                if ("money".startsWith(input)) completions.add("money");
-            } else if (parts.length == 3 && parts[1].equalsIgnoreCase("money")) {
-                String input = parts[2].toLowerCase();
-                for (Player p : Bukkit.getOnlinePlayers()) {
-                    if (p.getName().toLowerCase().startsWith(input)) {
-                        completions.add(p.getName());
-                    }
-                }
-            } else if (parts.length == 4 && parts[1].equalsIgnoreCase("money")) {
-                String input = parts[3].toLowerCase();
-                List<String> amounts = List.of("10", "50", "100", "500", "1000");
-                for (String amt : amounts) {
-                    if (amt.startsWith(input)) {
-                        completions.add(amt);
-                    }
-                }
-            }
-        } else if (parts[0].equalsIgnoreCase("@mode")) {
-            if (parts.length == 2) {
-                String input = parts[1].toLowerCase();
-                if ("build".startsWith(input)) completions.add("build");
-                if ("prison".startsWith(input)) completions.add("prison");
-            }
-        }
-
-        if (!completions.isEmpty()) {
-            event.setCompletions(completions);
-        }
+        // Tab completion handled by Bukkit command system now
     }
 
     @EventHandler
@@ -253,14 +164,17 @@ public class PrisonListener implements Listener {
             }
         }
 
-        // 1. Key Logic (Open Iron Doors for 3 seconds)
+        // 1. Key / Hacking Tool Logic (Open Iron Doors for 3 seconds)
         if (event.getAction() == Action.RIGHT_CLICK_BLOCK && clickedBlock != null && clickedBlock.getType() == Material.IRON_DOOR) {
-            if (item != null && item.getType() == Material.TRIPWIRE_HOOK) {
+            if (item != null && item.hasItemMeta()) {
                 ItemMeta meta = item.getItemMeta();
-                if (meta != null && meta.hasDisplayName() && meta.getDisplayName().contains("Key")) {
-                    event.setCancelled(true);
-                    openIronDoorTemporarily(clickedBlock);
-                    return;
+                if (meta != null && meta.hasDisplayName()) {
+                    String name = meta.getDisplayName();
+                    if (name.contains("Key") || name.contains("Hacking Tool")) {
+                        event.setCancelled(true);
+                        openIronDoorTemporarily(clickedBlock);
+                        return;
+                    }
                 }
             }
         }
@@ -383,176 +297,6 @@ public class PrisonListener implements Listener {
                     target.sendMessage("§cYou were whistled by Guard " + guard.getName() + "! You are now glowing.");
                 }
             }
-        }
-    }
-
-    private void executeAdminCommand(Player admin, String message) {
-        String[] parts = message.split(" ");
-        String cmd = parts[0].toLowerCase();
-
-        switch (cmd) {
-            case "@rank":
-                if (parts.length < 4 || !parts[1].equalsIgnoreCase("give")) {
-                    admin.sendMessage("§cUsage: @rank give [player] [rank]");
-                    return;
-                }
-                Player target = Bukkit.getPlayer(parts[2]);
-                if (target == null || !target.isOnline()) {
-                    admin.sendMessage("§cPlayer not found.");
-                    return;
-                }
-                Rank rank = Rank.fromName(parts[3]);
-                if (rank == null) {
-                    admin.sendMessage("§cInvalid rank. Options: Admin, Guard, PCI, Prisoner");
-                    return;
-                }
-                plugin.getRankManager().setRank(target, rank);
-                admin.sendMessage("§aSet rank of " + target.getName() + " to " + rank.getName() + ".");
-                break;
-
-            case "@give":
-                if (parts.length < 4 || !parts[1].equalsIgnoreCase("money")) {
-                    admin.sendMessage("§cUsage: @give money [player] [amount]");
-                    return;
-                }
-                Player giveTarget = Bukkit.getPlayer(parts[2]);
-                if (giveTarget == null || !giveTarget.isOnline()) {
-                    admin.sendMessage("§cPlayer not found.");
-                    return;
-                }
-                double amount;
-                try {
-                    amount = Double.parseDouble(parts[3]);
-                    if (amount <= 0) throw new NumberFormatException();
-                } catch (NumberFormatException e) {
-                    admin.sendMessage("§cInvalid amount. Must be a positive number.");
-                    return;
-                }
-                plugin.getEconomyManager().addBalance(giveTarget.getUniqueId(), amount);
-                admin.sendMessage("§aGave $" + String.format("%.2f", amount) + " to " + giveTarget.getName() + ".");
-                giveTarget.sendMessage("§aYou received $" + String.format("%.2f", amount) + " from Admin " + admin.getName() + ".");
-                break;
-
-            case "@day":
-                for (World w : Bukkit.getWorlds()) {
-                    w.setTime(0);
-                }
-                admin.sendMessage("§eTime set to Day (0).");
-                break;
-
-            case "@night":
-                for (World w : Bukkit.getWorlds()) {
-                    w.setTime(13000);
-                }
-                admin.sendMessage("§eTime set to Night (13000).");
-                break;
-
-            case "@setallspawn":
-                plugin.saveLocation("spawns.all", admin.getLocation());
-                admin.sendMessage("§aSpawn for all ranks set to your location.");
-                break;
-
-            case "@setpolicespawn":
-                plugin.saveLocation("spawns.police", admin.getLocation());
-                admin.sendMessage("§aPolice spawn set to your location.");
-                break;
-
-            case "@setprisonspawn":
-                plugin.saveLocation("spawns.prison", admin.getLocation());
-                admin.sendMessage("§aPrisoner spawn set to your location.");
-                break;
-
-            case "@mode":
-                if (parts.length < 2) {
-                    admin.sendMessage("§cUsage: @mode [build/prison]");
-                    return;
-                }
-                String mode = parts[1].toLowerCase();
-                if (mode.equals("build")) {
-                    plugin.setBuildModeActive(true);
-                    for (Player p : Bukkit.getOnlinePlayers()) {
-                        p.setGameMode(org.bukkit.GameMode.CREATIVE);
-                        p.sendMessage("§d[Prison] Build mode enabled. Everyone is now in Creative mode.");
-                    }
-                } else if (mode.equals("prison")) {
-                    plugin.setBuildModeActive(false);
-                    for (Player p : Bukkit.getOnlinePlayers()) {
-                        Rank r = plugin.getRankManager().getRank(p);
-                        if (r == Rank.ADMIN) {
-                            p.setGameMode(org.bukkit.GameMode.CREATIVE); // Admins remain creative
-                        } else {
-                            p.setGameMode(org.bukkit.GameMode.SURVIVAL);
-                        }
-                        p.sendMessage("§d[Prison] Prison mode enabled. Teleporting to designated rank spawns.");
-                        plugin.teleportPlayerToRankSpawn(p);
-                    }
-                } else {
-                    admin.sendMessage("§cInvalid mode. Use: build, prison");
-                }
-                break;
-
-            case "@save":
-                plugin.getBackupManager().saveArea(admin);
-                break;
-
-            case "@wandescape":
-                ItemStack wand = new ItemStack(Material.WOODEN_AXE);
-                ItemMeta wandMeta = wand.getItemMeta();
-                if (wandMeta != null) {
-                    wandMeta.displayName(net.kyori.adventure.text.Component.text("§5Escape Wand", net.kyori.adventure.text.format.NamedTextColor.DARK_PURPLE, net.kyori.adventure.text.format.TextDecoration.BOLD));
-                    wandMeta.lore(List.of(
-                        net.kyori.adventure.text.Component.text("§7Right-click: Set position 1"),
-                        net.kyori.adventure.text.Component.text("§7Left-click: Set position 2"),
-                        net.kyori.adventure.text.Component.text("§7Prisoners inside the zone escape!")
-                    ));
-                    wand.setItemMeta(wandMeta);
-                }
-                admin.getInventory().addItem(wand);
-                admin.sendMessage("§5Use the Escape Wand to set the escape zone corners.");
-                admin.playSound(admin.getLocation(), Sound.ENTITY_ITEM_PICKUP, 0.5f, 1.0f);
-                break;
-
-            case "@setPCIspawn":
-                plugin.saveLocation("spawns.pci", admin.getLocation());
-                admin.sendMessage("§aPCI spawn set to your location.");
-                break;
-
-            case "@setvent":
-                plugin.addVentLocation(admin.getLocation());
-                admin.sendMessage("§aVent location added at your position.");
-                admin.playSound(admin.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 0.5f, 1.5f);
-                break;
-
-            case "@escape":
-                if (parts.length < 2) {
-                    admin.sendMessage("§cUsage: @escape <player>");
-                    return;
-                }
-                Player escapeTarget = Bukkit.getPlayer(parts[1]);
-                if (escapeTarget == null || !escapeTarget.isOnline()) {
-                    admin.sendMessage("§cPlayer not found.");
-                    return;
-                }
-                plugin.getRankManager().setRank(escapeTarget, Rank.PCI);
-                escapeTarget.playSound(escapeTarget.getLocation(), Sound.ENTITY_ENDER_DRAGON_GROWL, 1.0f, 0.5f);
-                escapeTarget.showTitle(net.kyori.adventure.title.Title.title(
-                    net.kyori.adventure.text.Component.text("YOU ESCAPED!", net.kyori.adventure.text.format.NamedTextColor.RED),
-                    net.kyori.adventure.text.Component.text("You are now PCI. You escaped prison!", net.kyori.adventure.text.format.NamedTextColor.GRAY)
-                ));
-                admin.sendMessage("§a" + escapeTarget.getName() + " has been marked as escaped (PCI).");
-                for (Player p : Bukkit.getOnlinePlayers()) {
-                    Rank r = plugin.getRankManager().getRank(p);
-                    if (r == Rank.GUARD || r == Rank.ADMIN || r == Rank.PCI) {
-                        if (!p.equals(admin) && !p.equals(escapeTarget)) {
-                            p.sendMessage("§c§l[ALERT] §e" + escapeTarget.getName() + " §7has escaped prison!");
-                        }
-                    }
-                }
-                break;
-
-            default:
-                admin.sendMessage("§cUnknown admin command: " + cmd);
-                break;
         }
     }
 
