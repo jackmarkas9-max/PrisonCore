@@ -1,0 +1,12 @@
+# PrisonCore Configuration
+
+# Backup Settings
+backup:
+  # The radius of the bounding box centered around the player for block backups (@save)
+  radius: 25
+
+# Spawn Locations (Will be populated via @setallspawn, @setpolicespawn, @setprisonspawn)
+spawns:
+  all: null
+  police: null
+  prison: null

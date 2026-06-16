@@ -1,0 +1,15 @@
+name: PrisonCore
+version: '${version}'
+main: com.prisoncore.PrisonCore
+api-version: '1.21'
+description: A high-performance prison core plugin.
+commands:
+  pay:
+    description: Pay money to another player.
+    usage: /pay <player> <amount>
+  requestpay:
+    description: Request money from another player.
+    usage: /requestpay <player> <amount> <reason...>
+  setrank:
+    description: Set a player's rank (works from console).
+    usage: /setrank <player> <Admin|Guard|Prisoner>
