@@ -20,5 +20,11 @@ escape-zone:
   pos1: null
   pos2: null
 
-# Vent Locations (Set with @setvent)
+# Cell Zone (Set with /setcell)
+cell-zone:
+  pos1: null
+  pos2: null
+
+# Vent Locations (Set with /setvent <id>)
+# Format: [{id: 1, world: world, x: 0, y: 0, z: 0, yaw: 0, pitch: 0}]
 vents: []

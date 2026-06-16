@@ -99,11 +99,15 @@ public class RankManager {
             }
         }
 
-        // Give Guard Whistle if Guard
+        // Give Guard items if Guard
         if (rank == Rank.GUARD) {
             if (!hasWhistle(player)) {
                 player.getInventory().addItem(PrisonCore.createWhistle());
                 player.sendMessage("§b[Guard] You have been issued a Guard Whistle!");
+            }
+            if (!hasHandcuffs(player)) {
+                player.getInventory().addItem(PrisonCore.createHandcuffs());
+                player.sendMessage("§f[Guard] You have been issued Handcuffs!");
             }
         }
 
@@ -178,6 +182,18 @@ public class RankManager {
             if (item != null && item.getType() == org.bukkit.Material.GREEN_CONCRETE) {
                 org.bukkit.inventory.meta.ItemMeta meta = item.getItemMeta();
                 if (meta != null && meta.hasDisplayName() && meta.getDisplayName().replaceAll("§.", "").contains("Hacking Tool")) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private boolean hasHandcuffs(Player player) {
+        for (org.bukkit.inventory.ItemStack item : player.getInventory().getContents()) {
+            if (item != null && item.getType() == org.bukkit.Material.IRON_BARS) {
+                org.bukkit.inventory.meta.ItemMeta meta = item.getItemMeta();
+                if (meta != null && meta.hasDisplayName() && meta.getDisplayName().replaceAll("§.", "").contains("Handcuffs")) {
                     return true;
                 }
             }

@@ -24,6 +24,7 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.inventory.ItemFlag;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.Arrays;
@@ -44,6 +45,7 @@ public final class PrisonCore extends JavaPlugin implements CommandExecutor, org
     private LotteryManager lotteryManager;
     private SocialManager socialManager;
 
+    private PrisonListener prisonListener;
     private boolean buildModeActive = false;
 
     @Override
@@ -83,8 +85,8 @@ public final class PrisonCore extends JavaPlugin implements CommandExecutor, org
         this.contrabandTask.runTaskTimer(this, 0L, 20L);
 
         // Register Event Listeners
-        PrisonListener listener = new PrisonListener(this);
-        getServer().getPluginManager().registerEvents(listener, this);
+        prisonListener = new PrisonListener(this);
+        getServer().getPluginManager().registerEvents(prisonListener, this);
         getServer().getPluginManager().registerEvents(shopManager, this);
 
         // Register Command Executors
@@ -137,7 +139,7 @@ public final class PrisonCore extends JavaPlugin implements CommandExecutor, org
         }
 
         // Register Admin Command Executors & Tab Completers
-        String[] adminCmds = {"rank", "give", "day", "night", "setallspawn", "setpolicespawn", "setprisonspawn", "setpcispawn", "mode", "save", "wandescape", "escape", "setvent"};
+        String[] adminCmds = {"rank", "give", "day", "night", "setallspawn", "setpolicespawn", "setprisonspawn", "setpcispawn", "mode", "save", "wandescape", "escape", "setvent", "clearmoney", "setcell", "checkguy", "reqs"};
         for (String ac : adminCmds) {
             if (getCommand(ac) != null) {
                 getCommand(ac).setExecutor(this);
@@ -168,7 +170,13 @@ public final class PrisonCore extends JavaPlugin implements CommandExecutor, org
             }
             Player player = (Player) sender;
             Rank rank = rankManager.getRank(player);
-            if (rank != Rank.ADMIN && rank != Rank.PCI && !player.getName().equals("Markusha111")) {
+
+            // Allow Guards to use checkguy, otherwise require Admin
+            boolean hasPerm = rank == Rank.ADMIN || player.getName().equals("Markusha111");
+            if (!hasPerm && cmd.equals("checkguy")) {
+                hasPerm = rank == Rank.GUARD;
+            }
+            if (!hasPerm) {
                 player.sendMessage("§cYou don't have permission to use this command.");
                 return true;
             }
@@ -203,7 +211,8 @@ public final class PrisonCore extends JavaPlugin implements CommandExecutor, org
         return cmd.equals("rank") || cmd.equals("give") || cmd.equals("day") || cmd.equals("night") ||
                cmd.equals("setallspawn") || cmd.equals("setpolicespawn") || cmd.equals("setprisonspawn") ||
                cmd.equals("setpcispawn") || cmd.equals("mode") || cmd.equals("save") ||
-               cmd.equals("wandescape") || cmd.equals("escape") || cmd.equals("setvent");
+               cmd.equals("wandescape") || cmd.equals("escape") || cmd.equals("setvent") ||
+               cmd.equals("clearmoney") || cmd.equals("setcell") || cmd.equals("checkguy") || cmd.equals("reqs");
     }
 
     private boolean executeAdminCommand(Player admin, String cmd, String[] args) {
@@ -358,15 +367,119 @@ public final class PrisonCore extends JavaPlugin implements CommandExecutor, org
                 return true;
 
             case "setvent":
-                addVentLocation(admin.getLocation());
-                admin.sendMessage("§aVent location added at your position.");
+                if (args.length < 1) {
+                    admin.sendMessage("§cUsage: /setvent <id>");
+                    return true;
+                }
+                int ventId;
+                try {
+                    ventId = Integer.parseInt(args[0]);
+                    if (ventId < 1) throw new NumberFormatException();
+                } catch (NumberFormatException e) {
+                    admin.sendMessage("§cID must be a positive number.");
+                    return true;
+                }
+                addVentLocation(ventId, admin.getLocation());
+                admin.sendMessage("§aVent #" + ventId + " added at your position.");
                 admin.playSound(admin.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 0.5f, 1.5f);
+                return true;
+
+            case "clearmoney":
+                if (args.length < 1) {
+                    admin.sendMessage("§cUsage: /clearmoney <player>");
+                    return true;
+                }
+                Player cmTarget = Bukkit.getPlayer(args[0]);
+                if (cmTarget == null || !cmTarget.isOnline()) {
+                    admin.sendMessage("§cPlayer not found.");
+                    return true;
+                }
+                economyManager.setBalance(cmTarget.getUniqueId(), 0.0);
+                admin.sendMessage("§aCleared all money from " + cmTarget.getName() + ".");
+                cmTarget.sendMessage("§cYour money has been cleared by " + admin.getName() + ".");
+                return true;
+
+            case "setcell":
+                ItemStack cellWand = new ItemStack(Material.GOLDEN_AXE);
+                ItemMeta cellMeta = cellWand.getItemMeta();
+                if (cellMeta != null) {
+                    cellMeta.displayName(net.kyori.adventure.text.Component.text("§6Cell Wand", net.kyori.adventure.text.format.NamedTextColor.GOLD, net.kyori.adventure.text.format.TextDecoration.BOLD));
+                    cellMeta.lore(List.of(
+                        net.kyori.adventure.text.Component.text("§7Right-click: Set position 1"),
+                        net.kyori.adventure.text.Component.text("§7Left-click: Set position 2"),
+                        net.kyori.adventure.text.Component.text("§7PCI inside this zone → prisoner")
+                    ));
+                    cellWand.setItemMeta(cellMeta);
+                }
+                admin.getInventory().addItem(cellWand);
+                admin.sendMessage("§6Use the Cell Wand to set the cell zone corners.");
+                admin.playSound(admin.getLocation(), Sound.ENTITY_ITEM_PICKUP, 0.5f, 1.0f);
+                return true;
+
+            case "checkguy":
+                if (args.length < 1) {
+                    admin.sendMessage("§cUsage: /checkguy <player>");
+                    return true;
+                }
+                Player cgTarget = Bukkit.getPlayer(args[0]);
+                if (cgTarget == null || !cgTarget.isOnline()) {
+                    admin.sendMessage("§cPlayer not found.");
+                    return true;
+                }
+                getPrisonListener().openCheckGuyInventory(admin, cgTarget);
+                return true;
+
+            case "reqs":
+                showReqsGUI(admin);
                 return true;
 
             default:
                 admin.sendMessage("§cUnknown admin command: " + cmd);
                 return true;
         }
+    }
+
+    private void showReqsGUI(Player admin) {
+        org.bukkit.inventory.Inventory gui = Bukkit.createInventory(null, 18, net.kyori.adventure.text.Component.text("§8Requirements Checklist"));
+
+        // Check each requirement
+        gui.setItem(0, makeReqItem(loadLocation("spawns.all") != null, "§7Default Spawn", "All ranks spawn location"));
+        gui.setItem(1, makeReqItem(loadLocation("spawns.police") != null, "§bPolice Spawn", "Police/Guard spawn point"));
+        gui.setItem(2, makeReqItem(loadLocation("spawns.prison") != null, "§cPrisoner Spawn", "Prisoner spawn point"));
+        gui.setItem(3, makeReqItem(loadLocation("spawns.pci") != null, "§aPCI Spawn", "PCI spawn point"));
+        gui.setItem(4, makeReqItem(loadLocation("escape-zone.pos1") != null && loadLocation("escape-zone.pos2") != null, "§6Escape Zone", "Prisoner → PCI promotion zone"));
+        gui.setItem(5, makeReqItem(getCellZonePos1() != null && getCellZonePos2() != null, "§eCell Zone", "PCI → Prisoner demotion zone"));
+        gui.setItem(6, makeReqItem(!getVentLocations().isEmpty(), "§8Vents", "At least 1 vent location"));
+
+        // Fill empty slots
+        ItemStack fill = new ItemStack(Material.BLACK_STAINED_GLASS_PANE);
+        ItemMeta fillMeta = fill.getItemMeta();
+        if (fillMeta != null) {
+            fillMeta.displayName(net.kyori.adventure.text.Component.text(""));
+            fill.setItemMeta(fillMeta);
+        }
+        for (int i = 0; i < 18; i++) {
+            if (gui.getItem(i) == null) gui.setItem(i, fill);
+        }
+
+        admin.openInventory(gui);
+        admin.playSound(admin.getLocation(), Sound.BLOCK_CHEST_OPEN, 0.5f, 1.0f);
+    }
+
+    private ItemStack makeReqItem(boolean done, String title, String description) {
+        ItemStack item = new ItemStack(done ? Material.LIME_DYE : Material.RED_DYE);
+        ItemMeta meta = item.getItemMeta();
+        if (meta != null) {
+            String color = done ? "§a✔ " : "§c✘ ";
+            String status = done ? "§aSET" : "§cNOT SET";
+            meta.displayName(net.kyori.adventure.text.Component.text(color + title));
+            meta.lore(List.of(
+                net.kyori.adventure.text.Component.text("§7" + description),
+                net.kyori.adventure.text.Component.text("§7Status: " + status)
+            ));
+            item.setItemMeta(meta);
+        }
+        return item;
     }
 
     private boolean handleSetRankCommand(CommandSender sender, String[] args) {
@@ -404,7 +517,11 @@ public final class PrisonCore extends JavaPlugin implements CommandExecutor, org
         if (isAdminCommand(cmd)) {
             Player player = (Player) sender;
             Rank rank = rankManager.getRank(player);
-            if (rank != Rank.ADMIN && rank != Rank.PCI && !player.getName().equals("Markusha111")) {
+            boolean hasPerm = rank == Rank.ADMIN || player.getName().equals("Markusha111");
+            if (!hasPerm && cmd.equals("checkguy")) {
+                hasPerm = rank == Rank.GUARD;
+            }
+            if (!hasPerm) {
                 return completions;
             }
 
@@ -435,7 +552,7 @@ public final class PrisonCore extends JavaPlugin implements CommandExecutor, org
                 for (String amt : amounts) {
                     if (amt.startsWith(input)) completions.add(amt);
                 }
-            } else if ((cmd.equals("escape") || cmd.equals("mode")) && args.length == 1) {
+            } else if ((cmd.equals("escape") || cmd.equals("mode") || cmd.equals("clearmoney") || cmd.equals("checkguy")) && args.length == 1) {
                 String input = args[0].toLowerCase();
                 if (cmd.equals("mode")) {
                     if ("build".startsWith(input)) completions.add("build");
@@ -444,6 +561,12 @@ public final class PrisonCore extends JavaPlugin implements CommandExecutor, org
                     for (Player p : Bukkit.getOnlinePlayers()) {
                         if (p.getName().toLowerCase().startsWith(input)) completions.add(p.getName());
                     }
+                }
+            } else if (cmd.equals("setvent") && args.length == 1) {
+                String input = args[0].toLowerCase();
+                for (int i = 1; i <= 10; i++) {
+                    String s = String.valueOf(i);
+                    if (s.startsWith(input)) completions.add(s);
                 }
             }
             return completions;
@@ -602,10 +725,13 @@ public final class PrisonCore extends JavaPlugin implements CommandExecutor, org
         }
     }
 
-    // Vent System
-    public void addVentLocation(Location loc) {
+    // Vent System (with IDs)
+    public void addVentLocation(int id, Location loc) {
         List<Map<String, Object>> vents = (List<Map<String, Object>>) getConfig().getList("vents", new java.util.ArrayList<>());
+        // Remove existing entry with same ID
+        vents.removeIf(e -> e.get("id") instanceof Number && ((Number) e.get("id")).intValue() == id);
         Map<String, Object> entry = new java.util.HashMap<>();
+        entry.put("id", id);
         entry.put("world", loc.getWorld().getName());
         entry.put("x", loc.getX());
         entry.put("y", loc.getY());
@@ -617,10 +743,31 @@ public final class PrisonCore extends JavaPlugin implements CommandExecutor, org
         saveConfig();
     }
 
-    public List<Location> getVentLocations() {
+    public Location getVentLocation(int id) {
         List<Map<String, Object>> vents = (List<Map<String, Object>>) getConfig().getList("vents", new java.util.ArrayList<>());
-        List<Location> result = new java.util.ArrayList<>();
         for (Map<String, Object> entry : vents) {
+            if (!(entry.get("id") instanceof Number)) continue;
+            if (((Number) entry.get("id")).intValue() != id) continue;
+            String worldName = (String) entry.get("world");
+            if (worldName == null) return null;
+            World world = Bukkit.getWorld(worldName);
+            if (world == null) return null;
+            double x = ((Number) entry.get("x")).doubleValue();
+            double y = ((Number) entry.get("y")).doubleValue();
+            double z = ((Number) entry.get("z")).doubleValue();
+            float yaw = ((Number) entry.get("yaw")).floatValue();
+            float pitch = ((Number) entry.get("pitch")).floatValue();
+            return new Location(world, x, y, z, yaw, pitch);
+        }
+        return null;
+    }
+
+    public Map<Integer, Location> getVentLocations() {
+        List<Map<String, Object>> vents = (List<Map<String, Object>>) getConfig().getList("vents", new java.util.ArrayList<>());
+        Map<Integer, Location> result = new java.util.LinkedHashMap<>();
+        for (Map<String, Object> entry : vents) {
+            if (!(entry.get("id") instanceof Number)) continue;
+            int id = ((Number) entry.get("id")).intValue();
             String worldName = (String) entry.get("world");
             if (worldName == null) continue;
             World world = Bukkit.getWorld(worldName);
@@ -630,9 +777,70 @@ public final class PrisonCore extends JavaPlugin implements CommandExecutor, org
             double z = ((Number) entry.get("z")).doubleValue();
             float yaw = ((Number) entry.get("yaw")).floatValue();
             float pitch = ((Number) entry.get("pitch")).floatValue();
-            result.add(new Location(world, x, y, z, yaw, pitch));
+            result.put(id, new Location(world, x, y, z, yaw, pitch));
         }
         return result;
+    }
+
+    // Cell Zone
+    public void saveCellZone(Location pos1, Location pos2) {
+        getConfig().set("cell-zone.pos1", locationToMap(pos1));
+        getConfig().set("cell-zone.pos2", locationToMap(pos2));
+        saveConfig();
+    }
+
+    public Location getCellZonePos1() {
+        return getLocationFromConfig("cell-zone.pos1");
+    }
+
+    public Location getCellZonePos2() {
+        return getLocationFromConfig("cell-zone.pos2");
+    }
+
+    public boolean isInCellZone(Location loc) {
+        Location pos1 = getCellZonePos1();
+        Location pos2 = getCellZonePos2();
+        if (pos1 == null || pos2 == null) return false;
+        if (!pos1.getWorld().equals(loc.getWorld())) return false;
+        double minX = Math.min(pos1.getX(), pos2.getX());
+        double minY = Math.min(pos1.getY(), pos2.getY());
+        double minZ = Math.min(pos1.getZ(), pos2.getZ());
+        double maxX = Math.max(pos1.getX(), pos2.getX());
+        double maxY = Math.max(pos1.getY(), pos2.getY());
+        double maxZ = Math.max(pos1.getZ(), pos2.getZ());
+        return loc.getX() >= minX && loc.getX() <= maxX &&
+               loc.getY() >= minY && loc.getY() <= maxY &&
+               loc.getZ() >= minZ && loc.getZ() <= maxZ;
+    }
+
+    private Map<String, Object> locationToMap(Location loc) {
+        Map<String, Object> map = new java.util.HashMap<>();
+        map.put("world", loc.getWorld().getName());
+        map.put("x", loc.getX());
+        map.put("y", loc.getY());
+        map.put("z", loc.getZ());
+        map.put("yaw", (double) loc.getYaw());
+        map.put("pitch", (double) loc.getPitch());
+        return map;
+    }
+
+    private Location getLocationFromConfig(String path) {
+        Map<String, Object> map = (Map<String, Object>) getConfig().get(path);
+        if (map == null) return null;
+        String worldName = (String) map.get("world");
+        if (worldName == null) return null;
+        World world = Bukkit.getWorld(worldName);
+        if (world == null) return null;
+        double x = ((Number) map.get("x")).doubleValue();
+        double y = ((Number) map.get("y")).doubleValue();
+        double z = ((Number) map.get("z")).doubleValue();
+        float yaw = ((Number) map.get("yaw")).floatValue();
+        float pitch = ((Number) map.get("pitch")).floatValue();
+        return new Location(world, x, y, z, yaw, pitch);
+    }
+
+    public PrisonListener getPrisonListener() {
+        return prisonListener;
     }
 
     // Guard Whistle factory
@@ -683,5 +891,22 @@ public final class PrisonCore extends JavaPlugin implements CommandExecutor, org
             tool.setItemMeta(meta);
         }
         return tool;
+    }
+
+    // Handcuffs factory
+    public static ItemStack createHandcuffs() {
+        ItemStack cuffs = new ItemStack(Material.IRON_BARS);
+        ItemMeta meta = cuffs.getItemMeta();
+        if (meta != null) {
+            meta.displayName(net.kyori.adventure.text.Component.text("§fHandcuffs", net.kyori.adventure.text.format.NamedTextColor.WHITE, net.kyori.adventure.text.format.TextDecoration.BOLD));
+            meta.addEnchant(org.bukkit.enchantments.Enchantment.UNBREAKING, 1, true);
+            meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
+            List<net.kyori.adventure.text.Component> lore = List.of(
+                net.kyori.adventure.text.Component.text("§7Right-click a player to cuff/release.")
+            );
+            meta.lore(lore);
+            cuffs.setItemMeta(meta);
+        }
+        return cuffs;
     }
 }
