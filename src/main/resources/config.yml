@@ -5,8 +5,17 @@ backup:
   # The radius of the bounding box centered around the player for block backups (@save)
   radius: 25
 
-# Spawn Locations (Will be populated via @setallspawn, @setpolicespawn, @setprisonspawn)
+# Spawn Locations (Will be populated via @setallspawn, @setpolicespawn, @setprisonspawn, @setPCIspawn)
 spawns:
   all: null
   police: null
   prison: null
+  pci: null
+
+# Escape Zone (Set with @wandescape)
+escape-zone:
+  pos1: null
+  pos2: null
+
+# Vent Locations (Set with @setvent)
+vents: []

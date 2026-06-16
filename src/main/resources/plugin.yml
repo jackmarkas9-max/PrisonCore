@@ -12,4 +12,42 @@ commands:
     usage: /requestpay <player> <amount> <reason...>
   setrank:
     description: Set a player's rank (works from console).
-    usage: /setrank <player> <Admin|Guard|Prisoner>
+    usage: /setrank <player> <Admin|Guard|PCI|Prisoner>
+  shop:
+    description: Open the pickaxe shop.
+    usage: /shop [buy <name>]
+  gang:
+    description: Gang management.
+    usage: /gang <create|invite|join|leave|disband|info|balance|deposit|chat>
+  bounty:
+    description: Bounty system.
+    usage: /bounty <set|list>
+  lottery:
+    description: Buy a lottery ticket.
+    usage: /lottery
+  daily:
+    description: Claim your daily reward.
+    usage: /daily
+  baltop:
+    description: View top balances.
+    usage: /baltop
+  msg:
+    description: Send a private message.
+    usage: /msg <player> <message>
+    aliases: [tell, whisper, w]
+  reply:
+    description: Reply to a message.
+    usage: /reply <message>
+    aliases: [r]
+  r:
+    description: Reply to a message.
+    usage: /r <message>
+  tpa:
+    description: Request to teleport to a player.
+    usage: /tpa <player>
+  tpaccept:
+    description: Accept a teleport request.
+    usage: /tpaccept
+  tpdeny:
+    description: Deny a teleport request.
+    usage: /tpdeny

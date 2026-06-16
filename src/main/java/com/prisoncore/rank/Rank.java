@@ -5,8 +5,9 @@ import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 
 public enum Rank {
-    ADMIN("Admin", "[Admin] ", "§c[Admin] ", NamedTextColor.RED),
+    ADMIN("Admin", "[Admin] ", "§d[Admin] ", NamedTextColor.LIGHT_PURPLE),
     GUARD("Guard", "[Guard] ", "§9[Guard] ", NamedTextColor.BLUE),
+    PCI("PCI", "[PCI] ", "§c[PCI] ", NamedTextColor.RED),
     PRISONER("Prisoner", "[Prisoner] ", "§6[Prisoner] ", NamedTextColor.GOLD);
 
     private final String name;

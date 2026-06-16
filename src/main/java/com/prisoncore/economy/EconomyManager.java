@@ -108,12 +108,24 @@ public class EconomyManager {
 
         Rank rank = plugin.getRankManager().getRank(player);
         double balance = getBalance(player.getUniqueId());
+        String pRank = plugin.getPrisonRankManager().getPrisonRankName(player);
+        String gang = plugin.getGangManager().getPlayerGang(player);
+        double bounty = plugin.getBountyManager().getBounty(player);
 
-        int scoreIndex = 4;
-        objective.getScore("§7------------------").setScore(scoreIndex--);
+        int scoreIndex = 7;
+        objective.getScore("§7--------------------").setScore(scoreIndex--);
         objective.getScore("§fRank: " + rank.getLegacyPrefix().trim()).setScore(scoreIndex--);
+        if (rank == Rank.PRISONER || rank == Rank.PCI) {
+            objective.getScore("§fPrison Rank: §e" + pRank).setScore(scoreIndex--);
+        }
+        if (gang != null) {
+            objective.getScore("§fGang: §b" + gang).setScore(scoreIndex--);
+        }
+        if (bounty > 0) {
+            objective.getScore("§fBounty: §c$" + String.format("%.0f", bounty)).setScore(scoreIndex--);
+        }
         objective.getScore("§fBalance: §a$" + String.format("%.2f", balance)).setScore(scoreIndex--);
-        objective.getScore("§7-------------------").setScore(scoreIndex--);
+        objective.getScore("§7--------------------").setScore(scoreIndex--);
     }
 
     public boolean handlePayCommand(Player sender, String[] args) {

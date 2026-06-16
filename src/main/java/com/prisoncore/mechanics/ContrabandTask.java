@@ -60,6 +60,34 @@ public class ContrabandTask extends BukkitRunnable {
         if (item == null || item.getType() == Material.AIR) return false;
         Material type = item.getType();
         String name = type.name();
-        return name.endsWith("_SWORD") || type == Material.TNT || type == Material.FLINT_AND_STEEL;
+        return name.endsWith("_SWORD")
+            || name.endsWith("_AXE")
+            || name.endsWith("_SHOVEL")
+            || name.endsWith("_HOE")
+            || type == Material.TNT
+            || type == Material.FLINT_AND_STEEL
+            || type == Material.LAVA_BUCKET
+            || type == Material.WATER_BUCKET
+            || type == Material.BUCKET
+            || type == Material.COMPASS
+            || type == Material.CLOCK
+            || type == Material.ENDER_PEARL
+            || type == Material.ENDER_CHEST
+            || type == Material.OBSIDIAN
+            || type == Material.COBWEB
+            || type == Material.SNOWBALL
+            || type == Material.EGG
+            || type == Material.BOW
+            || type == Material.CROSSBOW
+            || type == Material.FISHING_ROD
+            || type == Material.SHEARS
+            || type == Material.LEAD
+            || type == Material.ANVIL
+            || type == Material.GRINDSTONE
+            || type == Material.CRAFTING_TABLE
+            || type == Material.CHEST
+            || type == Material.TRAPPED_CHEST
+            || type == Material.BARREL
+            || type == Material.SHIELD;
     }
 }

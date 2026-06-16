@@ -1,6 +1,10 @@
 package com.prisoncore.rank;
 
 import com.prisoncore.PrisonCore;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.format.TextDecoration;
+import net.kyori.adventure.title.Title;
 import org.bukkit.Bukkit;
 import org.bukkit.Color;
 import org.bukkit.GameMode;
@@ -74,8 +78,11 @@ public class RankManager {
         dataConfig.set(uuid.toString() + ".rank", rank.getName());
         saveConfig();
 
+        // Show role card title
+        showRoleCard(player, rank);
+
         // Update prefix in tab list using legacy format (Adventure text)
-        player.playerListName(net.kyori.adventure.text.Component.text(rank.getLegacyPrefix() + player.getName()));
+        player.playerListName(Component.text(rank.getLegacyPrefix() + player.getName()));
 
         // Check Admin Promotion effects
         if (rank == Rank.ADMIN && oldRank != Rank.ADMIN) {
@@ -100,8 +107,8 @@ public class RankManager {
             }
         }
 
-        // Give Key if Guard or Admin
-        if (rank == Rank.GUARD || rank == Rank.ADMIN) {
+        // Give Key if Guard, PCI or Admin
+        if (rank == Rank.GUARD || rank == Rank.PCI || rank == Rank.ADMIN) {
             if (!hasKey(player)) {
                 player.getInventory().addItem(PrisonCore.createKey());
                 player.sendMessage("§5[Key] You have been issued a Prison Key!");
@@ -112,6 +119,29 @@ public class RankManager {
         if (plugin.getEconomyManager() != null) {
             plugin.getEconomyManager().updateScoreboard(player);
         }
+    }
+
+    private void showRoleCard(Player player, Rank rank) {
+        String subtitle;
+        switch (rank) {
+            case ADMIN:
+                subtitle = "Overseer of the facility. Full authority. Build, manage, and enforce.";
+                break;
+            case GUARD:
+                subtitle = "Protect the facility. Patrol, whistle-check prisoners, secure all zones.";
+                break;
+            case PCI:
+                subtitle = "You fought for freedom. Evade recapture, use vents, escape again.";
+                break;
+            default:
+                subtitle = "Serve your sentence. Mine gold at night, obey rules, earn parole.";
+                break;
+        }
+
+        player.showTitle(Title.title(
+            rank.getPrefixComponent().append(Component.text(" " + rank.getName(), rank.getColor(), TextDecoration.BOLD)),
+            Component.text("\u00a77" + subtitle, NamedTextColor.GRAY, TextDecoration.ITALIC)
+        ));
     }
 
     private boolean hasWhistle(Player player) {
@@ -150,7 +180,7 @@ public class RankManager {
                     return;
                 }
                 Location loc = player.getLocation().add(0, 1.0, 0);
-                Particle.DustOptions dustOptions = new Particle.DustOptions(Color.RED, 1.5f);
+                Particle.DustOptions dustOptions = new Particle.DustOptions(Color.fromRGB(255, 105, 180), 1.5f);
                 player.getWorld().spawnParticle(Particle.DUST, loc, 15, 0.5, 0.5, 0.5, 0.05, dustOptions);
                 ticks += 2;
             }

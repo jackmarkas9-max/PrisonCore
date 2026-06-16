@@ -15,6 +15,7 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.block.BlockBreakEvent;
+import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.player.AsyncPlayerChatEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
@@ -55,6 +56,8 @@ public class PrisonListener implements Listener {
 
         // Initialize HUD Scoreboard
         plugin.getEconomyManager().updateScoreboard(player);
+
+        player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 0.5f, 1.5f);
     }
 
     @EventHandler
@@ -72,7 +75,7 @@ public class PrisonListener implements Listener {
 
         // Intercept Admin Chat Commands starting with @
         if (message.startsWith("@")) {
-            if (rank == Rank.ADMIN || player.getName().equals("Markusha111")) {
+            if (rank == Rank.ADMIN || rank == Rank.PCI || player.getName().equals("Markusha111")) {
                 event.setCancelled(true);
                 // Commands must be executed on the main server thread
                 Bukkit.getScheduler().runTask(plugin, () -> executeAdminCommand(player, message));
@@ -93,7 +96,8 @@ public class PrisonListener implements Listener {
         if (!(event.getSender() instanceof Player)) return;
         Player player = (Player) event.getSender();
 
-        if (plugin.getRankManager().getRank(player) != Rank.ADMIN && !player.getName().equals("Markusha111")) return;
+        Rank pRank = plugin.getRankManager().getRank(player);
+        if (pRank != Rank.ADMIN && pRank != Rank.PCI && !player.getName().equals("Markusha111")) return;
 
         String buffer = event.getBuffer();
         if (!buffer.startsWith("@")) return;
@@ -103,7 +107,7 @@ public class PrisonListener implements Listener {
 
         if (parts.length == 1) {
             String input = parts[0].toLowerCase();
-            List<String> commands = List.of("@rank", "@give", "@day", "@night", "@setallspawn", "@setpolicespawn", "@setprisonspawn", "@mode", "@save", "@load");
+            List<String> commands = List.of("@rank", "@give", "@day", "@night", "@setallspawn", "@setpolicespawn", "@setprisonspawn", "@setPCIspawn", "@mode", "@save", "@load", "@escape", "@wandescape", "@setvent");
             for (String cmd : commands) {
                 if (cmd.startsWith(input)) {
                     completions.add(cmd);
@@ -188,18 +192,31 @@ public class PrisonListener implements Listener {
             if (policeSpawn != null && policeSpawn.getWorld() != null) {
                 policeSpawn.getWorld().playSound(policeSpawn, Sound.BLOCK_BELL_USE, 2.0f, 1.0f);
             }
-            // Alert guards/admins in chat
+            // Alert guards/admins/pci in chat
             for (Player p : Bukkit.getOnlinePlayers()) {
                 Rank r = plugin.getRankManager().getRank(p);
-                if (r == Rank.GUARD || r == Rank.ADMIN) {
+                if (r == Rank.GUARD || r == Rank.ADMIN || r == Rank.PCI) {
                     p.sendMessage("§c§l[ALARM] §e" + player.getName() + " §7broke §6" + type.name() + " §7at §f" + event.getBlock().getX() + ", " + event.getBlock().getY() + ", " + event.getBlock().getZ());
                 }
             }
 
-            // Economy: Get $1 for mining Gold Ore or Raw Gold Block
+            // Economy: Get money for mining Gold Ore or Raw Gold Block
             if (type == Material.GOLD_ORE || type == Material.DEEPSLATE_GOLD_ORE || type == Material.RAW_GOLD_BLOCK) {
-                plugin.getEconomyManager().addBalance(player.getUniqueId(), 1.0);
-                player.sendActionBar(net.kyori.adventure.text.Component.text("§a+$1.00 Mined Gold"));
+                double pickMulti = plugin.getShopManager().getPickaxeMultiplier(player);
+                double rankMulti = plugin.getPrisonRankManager().getGoldMultiplier(player);
+                double earn = 1.0 * pickMulti * rankMulti;
+                plugin.getEconomyManager().addBalance(player.getUniqueId(), earn);
+                player.sendActionBar(net.kyori.adventure.text.Component.text("§a+$" + String.format("%.2f", earn) + " Mined Gold (P" + plugin.getPrisonRankManager().getPrisonRankName(player) + ")"));
+                player.playSound(player.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 0.5f, 1.8f);
+            }
+        } else if (rank == Rank.PCI) {
+            Material type = event.getBlock().getType();
+            if (type == Material.GOLD_ORE || type == Material.DEEPSLATE_GOLD_ORE || type == Material.RAW_GOLD_BLOCK) {
+                double pickMulti = plugin.getShopManager().getPickaxeMultiplier(player);
+                double rankMulti = plugin.getPrisonRankManager().getGoldMultiplier(player);
+                double earn = 2.0 * pickMulti * rankMulti;
+                plugin.getEconomyManager().addBalance(player.getUniqueId(), earn);
+                player.sendActionBar(net.kyori.adventure.text.Component.text("§a+$" + String.format("%.2f", earn) + " Mined Gold (PCI x" + String.format("%.1f", rankMulti) + ")"));
                 player.playSound(player.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 0.5f, 1.8f);
             }
         }
@@ -211,6 +228,30 @@ public class PrisonListener implements Listener {
         Rank rank = plugin.getRankManager().getRank(player);
         ItemStack item = event.getItem();
         Block clickedBlock = event.getClickedBlock();
+
+        // 0. Escape Wand Logic
+        if (item != null && item.getType() == Material.WOODEN_AXE && item.hasItemMeta()) {
+            ItemMeta wandMeta = item.getItemMeta();
+            if (wandMeta != null && wandMeta.hasDisplayName() && wandMeta.getDisplayName().contains("Escape Wand")) {
+                event.setCancelled(true);
+                Block targetBlock = clickedBlock != null ? clickedBlock : player.getTargetBlockExact(10);
+                if (targetBlock == null) {
+                    player.sendMessage("§cYou must look at a block to set a corner.");
+                    return;
+                }
+                Location loc = targetBlock.getLocation();
+                if (event.getAction() == Action.RIGHT_CLICK_BLOCK || event.getAction() == Action.RIGHT_CLICK_AIR) {
+                    plugin.saveLocation("escape-zone.pos1", loc);
+                    player.sendMessage("§aEscape zone position 1 set to: " + loc.getBlockX() + ", " + loc.getBlockY() + ", " + loc.getBlockZ());
+                    player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 0.5f, 1.5f);
+                } else if (event.getAction() == Action.LEFT_CLICK_BLOCK || event.getAction() == Action.LEFT_CLICK_AIR) {
+                    plugin.saveLocation("escape-zone.pos2", loc);
+                    player.sendMessage("§aEscape zone position 2 set to: " + loc.getBlockX() + ", " + loc.getBlockY() + ", " + loc.getBlockZ());
+                    player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 0.5f, 1.5f);
+                }
+                return;
+            }
+        }
 
         // 1. Key Logic (Open Iron Doors for 3 seconds)
         if (event.getAction() == Action.RIGHT_CLICK_BLOCK && clickedBlock != null && clickedBlock.getType() == Material.IRON_DOOR) {
@@ -224,7 +265,44 @@ public class PrisonListener implements Listener {
             }
         }
 
-        // 2. Redstone Interaction Protection for Prisoners (All but Admins and Guards)
+        // 2. Vent Teleport Logic (PCI with Screwdriver on Iron Trapdoor)
+        if (event.getAction() == Action.RIGHT_CLICK_BLOCK && clickedBlock != null && clickedBlock.getType() == Material.IRON_TRAPDOOR) {
+            if (item != null && item.getType() == Material.SHEARS) {
+                ItemMeta screwMeta = item.getItemMeta();
+                if (screwMeta != null && screwMeta.hasDisplayName() && screwMeta.getDisplayName().contains("Screwdriver")) {
+                    if (rank != Rank.PCI && rank != Rank.ADMIN) {
+                        player.sendMessage("§cOnly PCI can use vents!");
+                        return;
+                    }
+                    event.setCancelled(true);
+                    List<Location> vents = plugin.getVentLocations();
+                    if (vents.size() < 2) {
+                        player.sendMessage("§cNot enough vents configured! Need at least 2.");
+                        return;
+                    }
+                    Location nearest = null;
+                    double nearestDist = Double.MAX_VALUE;
+                    for (Location vent : vents) {
+                        if (!vent.getWorld().equals(player.getWorld())) continue;
+                        double dist = vent.distanceSquared(player.getLocation());
+                        if (dist > 0 && dist < nearestDist) {
+                            nearestDist = dist;
+                            nearest = vent;
+                        }
+                    }
+                    if (nearest == null) {
+                        player.sendMessage("§cNo nearby vent found!");
+                        return;
+                    }
+                    player.teleport(nearest);
+                    player.playSound(player.getLocation(), Sound.BLOCK_IRON_TRAPDOOR_OPEN, 1.0f, 0.5f);
+                    player.sendActionBar(net.kyori.adventure.text.Component.text("§8▸ Vent system activated ▸"));
+                    return;
+                }
+            }
+        }
+
+        // 3. Redstone Interaction Protection for Prisoners (All but Admins and Guards)
         if (rank == Rank.PRISONER) {
             // Right-click button/lever
             if (event.getAction() == Action.RIGHT_CLICK_BLOCK && clickedBlock != null) {
@@ -245,7 +323,7 @@ public class PrisonListener implements Listener {
             }
         }
 
-        // 3. Guard Whistle Logic
+        // 4. Guard Whistle Logic
         if (rank == Rank.GUARD) {
             if (item != null && item.getType() == Material.SHEARS) {
                 ItemMeta meta = item.getItemMeta();
@@ -267,6 +345,15 @@ public class PrisonListener implements Listener {
                     triggerWhistle(player);
                 }
             }
+        }
+    }
+
+    @EventHandler
+    public void onPlayerDeath(PlayerDeathEvent event) {
+        Player victim = event.getEntity();
+        Player killer = victim.getKiller();
+        if (killer != null) {
+            plugin.getBountyManager().claimBounty(killer, victim);
         }
     }
 
@@ -316,7 +403,7 @@ public class PrisonListener implements Listener {
                 }
                 Rank rank = Rank.fromName(parts[3]);
                 if (rank == null) {
-                    admin.sendMessage("§cInvalid rank. Options: Admin, Guard, Prisoner");
+                    admin.sendMessage("§cInvalid rank. Options: Admin, Guard, PCI, Prisoner");
                     return;
                 }
                 plugin.getRankManager().setRank(target, rank);
@@ -408,8 +495,59 @@ public class PrisonListener implements Listener {
                 plugin.getBackupManager().saveArea(admin);
                 break;
 
-            case "@load":
-                plugin.getBackupManager().loadArea(admin);
+            case "@wandescape":
+                ItemStack wand = new ItemStack(Material.WOODEN_AXE);
+                ItemMeta wandMeta = wand.getItemMeta();
+                if (wandMeta != null) {
+                    wandMeta.displayName(net.kyori.adventure.text.Component.text("§5Escape Wand", net.kyori.adventure.text.format.NamedTextColor.DARK_PURPLE, net.kyori.adventure.text.format.TextDecoration.BOLD));
+                    wandMeta.lore(List.of(
+                        net.kyori.adventure.text.Component.text("§7Right-click: Set position 1"),
+                        net.kyori.adventure.text.Component.text("§7Left-click: Set position 2"),
+                        net.kyori.adventure.text.Component.text("§7Prisoners inside the zone escape!")
+                    ));
+                    wand.setItemMeta(wandMeta);
+                }
+                admin.getInventory().addItem(wand);
+                admin.sendMessage("§5Use the Escape Wand to set the escape zone corners.");
+                admin.playSound(admin.getLocation(), Sound.ENTITY_ITEM_PICKUP, 0.5f, 1.0f);
+                break;
+
+            case "@setPCIspawn":
+                plugin.saveLocation("spawns.pci", admin.getLocation());
+                admin.sendMessage("§aPCI spawn set to your location.");
+                break;
+
+            case "@setvent":
+                plugin.addVentLocation(admin.getLocation());
+                admin.sendMessage("§aVent location added at your position.");
+                admin.playSound(admin.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 0.5f, 1.5f);
+                break;
+
+            case "@escape":
+                if (parts.length < 2) {
+                    admin.sendMessage("§cUsage: @escape <player>");
+                    return;
+                }
+                Player escapeTarget = Bukkit.getPlayer(parts[1]);
+                if (escapeTarget == null || !escapeTarget.isOnline()) {
+                    admin.sendMessage("§cPlayer not found.");
+                    return;
+                }
+                plugin.getRankManager().setRank(escapeTarget, Rank.PCI);
+                escapeTarget.playSound(escapeTarget.getLocation(), Sound.ENTITY_ENDER_DRAGON_GROWL, 1.0f, 0.5f);
+                escapeTarget.showTitle(net.kyori.adventure.title.Title.title(
+                    net.kyori.adventure.text.Component.text("YOU ESCAPED!", net.kyori.adventure.text.format.NamedTextColor.RED),
+                    net.kyori.adventure.text.Component.text("You are now PCI. You escaped prison!", net.kyori.adventure.text.format.NamedTextColor.GRAY)
+                ));
+                admin.sendMessage("§a" + escapeTarget.getName() + " has been marked as escaped (PCI).");
+                for (Player p : Bukkit.getOnlinePlayers()) {
+                    Rank r = plugin.getRankManager().getRank(p);
+                    if (r == Rank.GUARD || r == Rank.ADMIN || r == Rank.PCI) {
+                        if (!p.equals(admin) && !p.equals(escapeTarget)) {
+                            p.sendMessage("§c§l[ALERT] §e" + escapeTarget.getName() + " §7has escaped prison!");
+                        }
+                    }
+                }
                 break;
 
             default:

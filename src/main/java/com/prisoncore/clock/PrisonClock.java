@@ -3,7 +3,7 @@ package com.prisoncore.clock;
 import com.prisoncore.PrisonCore;
 import com.prisoncore.rank.Rank;
 import org.bukkit.Bukkit;
-import org.bukkit.GameRule;
+import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.boss.BarColor;
 import org.bukkit.boss.BarStyle;
@@ -29,12 +29,6 @@ public class PrisonClock extends BukkitRunnable {
         );
         this.bossBar.setVisible(true);
 
-        // Turn off natural daylight cycle to allow our manual ticks
-        for (World world : Bukkit.getWorlds()) {
-            world.setGameRule(GameRule.DO_DAYLIGHT_CYCLE, false);
-        }
-
-        // Add currently online players (for reloads)
         for (Player player : Bukkit.getOnlinePlayers()) {
             bossBar.addPlayer(player);
         }
@@ -56,21 +50,12 @@ public class PrisonClock extends BukkitRunnable {
     public void run() {
         try {
             if (Bukkit.getWorlds().isEmpty()) return;
-            World world = Bukkit.getWorlds().get(0); // Main world
+            World world = Bukkit.getWorlds().get(0);
             if (world == null) return;
 
-            // Advance world time manually (+2 ticks per tick)
-            long currentWorldTime = world.getTime();
-            long newWorldTime = (currentWorldTime + 1) % 24000;
+            long time = world.getTime() % 24000;
+            boolean isNight = time >= 13000;
 
-            // Sync to all worlds
-            for (World w : Bukkit.getWorlds()) {
-                w.setTime(newWorldTime);
-            }
-
-            boolean isNight = newWorldTime >= 13000; // 13000 to 24000 is night
-
-            // Check for Transitions
             if (isNight && !wasNight) {
                 handleNightTransition();
             } else if (!isNight && wasNight) {
@@ -78,29 +63,27 @@ public class PrisonClock extends BukkitRunnable {
             }
             wasNight = isNight;
 
-            // Update HUD (BossBar)
-            long hours = (newWorldTime / 1000 + 6) % 24;
-            long minutes = (newWorldTime % 1000) * 60 / 1000;
+            long hours = (time / 1000 + 6) % 24;
+            long minutes = (time % 1000) * 60 / 1000;
             String timeString = String.format("%02d:%02d", hours, minutes);
 
             String title = isNight ? "NIGHT - " + timeString : "DAY - " + timeString;
             bossBar.setTitle(title);
             bossBar.setColor(isNight ? BarColor.PURPLE : BarColor.YELLOW);
 
-            // Progress bar: relative to the current phase (Day/Night duration)
             double progress;
             if (isNight) {
-                progress = (double) (newWorldTime - 13000) / 11000.0;
+                progress = (double) (time - 13000) / 11000.0;
             } else {
-                progress = (double) newWorldTime / 13000.0;
+                progress = (double) time / 13000.0;
             }
             bossBar.setProgress(Math.min(1.0, Math.max(0.0, progress)));
 
-            // Handle Potion Effects every second (20 ticks)
             effectUpdateCounter++;
             if (effectUpdateCounter >= 20) {
                 effectUpdateCounter = 0;
                 updateNightEffects(isNight);
+                checkEscape();
             }
         } catch (Exception e) {
             plugin.getLogger().severe("PrisonClock error: " + e.getMessage());
@@ -138,6 +121,44 @@ public class PrisonClock extends BukkitRunnable {
             } else {
                 if (player.hasPotionEffect(PotionEffectType.DARKNESS)) {
                     player.removePotionEffect(PotionEffectType.DARKNESS);
+                }
+            }
+        }
+    }
+
+    private void checkEscape() {
+        Location pos1 = plugin.loadLocation("escape-zone.pos1");
+        Location pos2 = plugin.loadLocation("escape-zone.pos2");
+        if (pos1 == null || pos2 == null) return;
+        if (pos1.getWorld() == null || pos2.getWorld() == null) return;
+        if (!pos1.getWorld().equals(pos2.getWorld())) return;
+
+        double minX = Math.min(pos1.getX(), pos2.getX());
+        double maxX = Math.max(pos1.getX(), pos2.getX());
+        double minY = Math.min(pos1.getY(), pos2.getY());
+        double maxY = Math.max(pos1.getY(), pos2.getY());
+        double minZ = Math.min(pos1.getZ(), pos2.getZ());
+        double maxZ = Math.max(pos1.getZ(), pos2.getZ());
+
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            Rank rank = plugin.getRankManager().getRank(player);
+            if (rank != Rank.PRISONER) continue;
+            Location loc = player.getLocation();
+            if (!loc.getWorld().equals(pos1.getWorld())) continue;
+            if (loc.getX() >= minX && loc.getX() <= maxX &&
+                loc.getY() >= minY && loc.getY() <= maxY &&
+                loc.getZ() >= minZ && loc.getZ() <= maxZ) {
+                plugin.getRankManager().setRank(player, Rank.PCI);
+                player.playSound(player.getLocation(), Sound.ENTITY_ENDER_DRAGON_GROWL, 1.0f, 0.5f);
+                player.showTitle(net.kyori.adventure.title.Title.title(
+                    net.kyori.adventure.text.Component.text("YOU ESCAPED!", net.kyori.adventure.text.format.NamedTextColor.RED),
+                    net.kyori.adventure.text.Component.text("You are now PCI. You escaped prison!", net.kyori.adventure.text.format.NamedTextColor.GRAY)
+                ));
+                for (Player p : Bukkit.getOnlinePlayers()) {
+                    Rank r = plugin.getRankManager().getRank(p);
+                    if (r == Rank.GUARD || r == Rank.ADMIN || r == Rank.PCI) {
+                        p.sendMessage("§c§l[ALERT] §e" + player.getName() + " §7has escaped prison!");
+                    }
                 }
             }
         }
