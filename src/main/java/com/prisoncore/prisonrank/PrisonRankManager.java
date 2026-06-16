@@ -78,7 +78,7 @@ public class PrisonRankManager {
 
     public boolean claimDaily(Player player) {
         long now = System.currentTimeMillis() / 1000;
-        UUID uuid = player.getUniqueKey();
+        UUID uuid = player.getUniqueId();
         long last = lastDaily.containsKey(uuid) ? lastDaily.get(uuid) : dataConfig.getLong(uuid.toString() + ".daily", 0);
         if (now - last < 86400) {
             long remaining = 86400 - (now - last);
