@@ -144,55 +144,11 @@ public class PrisonListener implements Listener {
         Player player = event.getPlayer();
         Rank rank = plugin.getRankManager().getRank(player);
 
-        if (rank == Rank.PRISONER) {
-            boolean isNight = plugin.getClock().isNightNow();
-            if (!isNight) {
-                // Day Rule: Prisoners cannot break blocks during the Day
-                event.setCancelled(true);
-                player.sendActionBar(net.kyori.adventure.text.Component.text("§cPrisoners are locked! You cannot break blocks during the day."));
-                return;
-            }
-
-            // Night Rule: Can break blocks EXCEPT Iron Doors
-            Material type = event.getBlock().getType();
-            if (type == Material.IRON_DOOR) {
-                event.setCancelled(true);
-                player.sendMessage("§cIron Doors are unbreakable for prisoners!");
-                return;
-            }
-
-            // Trigger Alarm at Police Spawn
-            Location policeSpawn = plugin.loadLocation("spawns.police");
-            if (policeSpawn != null && policeSpawn.getWorld() != null) {
-                policeSpawn.getWorld().playSound(policeSpawn, Sound.BLOCK_BELL_USE, 2.0f, 1.0f);
-            }
-            // Alert guards/admins/pci in chat
-            for (Player p : Bukkit.getOnlinePlayers()) {
-                Rank r = plugin.getRankManager().getRank(p);
-                if (r == Rank.GUARD || r == Rank.ADMIN || r == Rank.PCI) {
-                    p.sendMessage("§c§l[ALARM] §e" + player.getName() + " §7broke §6" + type.name() + " §7at §f" + event.getBlock().getX() + ", " + event.getBlock().getY() + ", " + event.getBlock().getZ());
-                }
-            }
-
-            // Economy: Get money for mining Gold Ore or Raw Gold Block
-            if (type == Material.GOLD_ORE || type == Material.DEEPSLATE_GOLD_ORE || type == Material.RAW_GOLD_BLOCK) {
-                double pickMulti = plugin.getShopManager().getPickaxeMultiplier(player);
-                double rankMulti = plugin.getPrisonRankManager().getGoldMultiplier(player);
-                double earn = 1.0 * pickMulti * rankMulti;
-                plugin.getEconomyManager().addBalance(player.getUniqueId(), earn);
-                player.sendActionBar(net.kyori.adventure.text.Component.text("§a+$" + String.format("%.2f", earn) + " Mined Gold (P" + plugin.getPrisonRankManager().getPrisonRankName(player) + ")"));
-                player.playSound(player.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 0.5f, 1.8f);
-            }
-        } else if (rank == Rank.PCI) {
-            Material type = event.getBlock().getType();
-            if (type == Material.GOLD_ORE || type == Material.DEEPSLATE_GOLD_ORE || type == Material.RAW_GOLD_BLOCK) {
-                double pickMulti = plugin.getShopManager().getPickaxeMultiplier(player);
-                double rankMulti = plugin.getPrisonRankManager().getGoldMultiplier(player);
-                double earn = 2.0 * pickMulti * rankMulti;
-                plugin.getEconomyManager().addBalance(player.getUniqueId(), earn);
-                player.sendActionBar(net.kyori.adventure.text.Component.text("§a+$" + String.format("%.2f", earn) + " Mined Gold (PCI x" + String.format("%.1f", rankMulti) + ")"));
-                player.playSound(player.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 0.5f, 1.8f);
-            }
+        // Only Admin can break blocks
+        if (rank != Rank.ADMIN) {
+            event.setCancelled(true);
+            player.sendActionBar(net.kyori.adventure.text.Component.text("§cOnly Admins can break blocks!"));
+            return;
         }
     }
 
@@ -238,7 +194,7 @@ public class PrisonListener implements Listener {
             if (plugin.isInCellZone(player.getLocation())) {
                 plugin.getRankManager().setRank(player, Rank.PRISONER);
                 player.getInventory().clear();
-                Location prisonSpawn = plugin.loadLocation("spawns.prison");
+                Location prisonSpawn = plugin.getRandomSpawnLocation("spawns.prison");
                 if (prisonSpawn != null) {
                     player.teleport(prisonSpawn);
                 }
@@ -350,14 +306,37 @@ public class PrisonListener implements Listener {
                     Location pos1 = plugin.getCellZonePos1();
                     Location pos2 = plugin.getCellZonePos2();
                     if (event.getAction() == Action.RIGHT_CLICK_BLOCK || event.getAction() == Action.RIGHT_CLICK_AIR) {
-                        pos1 = loc;
-                        plugin.saveCellZone(pos1, pos2 != null ? pos2 : pos1);
+                        plugin.saveCellZone(loc, pos2 != null ? pos2 : loc);
                         player.sendMessage("§aCell zone position 1 set to: " + loc.getBlockX() + ", " + loc.getBlockY() + ", " + loc.getBlockZ());
                         player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 0.5f, 1.5f);
                     } else if (event.getAction() == Action.LEFT_CLICK_BLOCK || event.getAction() == Action.LEFT_CLICK_AIR) {
-                        pos2 = loc;
-                        plugin.saveCellZone(pos1 != null ? pos1 : pos2, pos2);
+                        plugin.saveCellZone(pos1 != null ? pos1 : loc, loc);
                         player.sendMessage("§aCell zone position 2 set to: " + loc.getBlockX() + ", " + loc.getBlockY() + ", " + loc.getBlockZ());
+                        player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 0.5f, 1.5f);
+                    }
+                    return;
+                }
+                // Spawn zone wands
+                String[] spawnWandNames = {"All Spawn", "Police Spawn", "Prison Spawn", "PCI Spawn"};
+                String[] spawnConfigKeys = {"spawns.all", "spawns.police", "spawns.prison", "spawns.pci"};
+                String matchedKey = null;
+                for (int i = 0; i < spawnWandNames.length; i++) {
+                    if (wandMeta.getDisplayName().contains(spawnWandNames[i])) {
+                        matchedKey = spawnConfigKeys[i];
+                        break;
+                    }
+                }
+                if (matchedKey != null) {
+                    event.setCancelled(true);
+                    Location sPos1 = plugin.getSpawnZonePos1(matchedKey);
+                    Location sPos2 = plugin.getSpawnZonePos2(matchedKey);
+                    if (event.getAction() == Action.RIGHT_CLICK_BLOCK || event.getAction() == Action.RIGHT_CLICK_AIR) {
+                        plugin.saveSpawnZone(matchedKey, loc, sPos2 != null ? sPos2 : loc);
+                        player.sendMessage("§a" + matchedKey + " zone position 1 set.");
+                        player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 0.5f, 1.5f);
+                    } else if (event.getAction() == Action.LEFT_CLICK_BLOCK || event.getAction() == Action.LEFT_CLICK_AIR) {
+                        plugin.saveSpawnZone(matchedKey, sPos1 != null ? sPos1 : loc, loc);
+                        player.sendMessage("§a" + matchedKey + " zone position 2 set.");
                         player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 0.5f, 1.5f);
                     }
                     return;
@@ -401,13 +380,13 @@ public class PrisonListener implements Listener {
             }
         }
 
-        // 3. Redstone Interaction Protection for Prisoners (All but Admins and Guards)
-        if (rank == Rank.PRISONER) {
+        // 3. Redstone/switch interaction — only Admin can use buttons, levers, pressure plates
+        if (rank != Rank.ADMIN) {
             if (event.getAction() == Action.RIGHT_CLICK_BLOCK && clickedBlock != null) {
                 Material type = clickedBlock.getType();
                 if (isRedstoneActivator(type)) {
                     event.setCancelled(true);
-                    player.sendActionBar(net.kyori.adventure.text.Component.text("§cPrisoners cannot interact with security switches!"));
+                    player.sendActionBar(net.kyori.adventure.text.Component.text("§cOnly Admins can interact with switches!"));
                     return;
                 }
             }
@@ -422,7 +401,7 @@ public class PrisonListener implements Listener {
 
         // 4. Guard Whistle Logic
         if (rank == Rank.GUARD) {
-            if (item != null && item.getType() == Material.SHEARS) {
+            if (item != null && item.getType() == Material.GOAT_HORN) {
                 ItemMeta meta = item.getItemMeta();
                 if (meta != null && meta.hasDisplayName() && meta.getDisplayName().contains("Whistle")) {
                     event.setCancelled(true);

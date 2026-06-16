@@ -270,23 +270,27 @@ public final class PrisonCore extends JavaPlugin implements CommandExecutor, org
                 return true;
 
             case "setallspawn":
-                saveLocation("spawns.all", admin.getLocation());
-                admin.sendMessage("§aSpawn for all ranks set to your location.");
+                admin.getInventory().addItem(makeSpawnWand("All Spawn", "§eAll Spawn Wand", "All ranks teleport here"));
+                admin.sendMessage("§eUse the wand to set the all-ranks spawn zone.");
+                admin.playSound(admin.getLocation(), Sound.ENTITY_ITEM_PICKUP, 0.5f, 1.0f);
                 return true;
 
             case "setpolicespawn":
-                saveLocation("spawns.police", admin.getLocation());
-                admin.sendMessage("§aPolice spawn set to your location.");
+                admin.getInventory().addItem(makeSpawnWand("Police Spawn", "§bPolice Spawn Wand", "Police/Guard teleport here"));
+                admin.sendMessage("§bUse the wand to set the police spawn zone.");
+                admin.playSound(admin.getLocation(), Sound.ENTITY_ITEM_PICKUP, 0.5f, 1.0f);
                 return true;
 
             case "setprisonspawn":
-                saveLocation("spawns.prison", admin.getLocation());
-                admin.sendMessage("§aPrisoner spawn set to your location.");
+                admin.getInventory().addItem(makeSpawnWand("Prison Spawn", "§cPrison Spawn Wand", "Prisoner teleport here"));
+                admin.sendMessage("§cUse the wand to set the prisoner spawn zone.");
+                admin.playSound(admin.getLocation(), Sound.ENTITY_ITEM_PICKUP, 0.5f, 1.0f);
                 return true;
 
             case "setpcispawn":
-                saveLocation("spawns.pci", admin.getLocation());
-                admin.sendMessage("§aPCI spawn set to your location.");
+                admin.getInventory().addItem(makeSpawnWand("PCI Spawn", "§aPCI Spawn Wand", "PCI teleport here"));
+                admin.sendMessage("§aUse the wand to set the PCI spawn zone.");
+                admin.playSound(admin.getLocation(), Sound.ENTITY_ITEM_PICKUP, 0.5f, 1.0f);
                 return true;
 
             case "mode":
@@ -443,10 +447,10 @@ public final class PrisonCore extends JavaPlugin implements CommandExecutor, org
         org.bukkit.inventory.Inventory gui = Bukkit.createInventory(null, 18, net.kyori.adventure.text.Component.text("§8Requirements Checklist"));
 
         // Check each requirement
-        gui.setItem(0, makeReqItem(loadLocation("spawns.all") != null, "§7Default Spawn", "All ranks spawn location"));
-        gui.setItem(1, makeReqItem(loadLocation("spawns.police") != null, "§bPolice Spawn", "Police/Guard spawn point"));
-        gui.setItem(2, makeReqItem(loadLocation("spawns.prison") != null, "§cPrisoner Spawn", "Prisoner spawn point"));
-        gui.setItem(3, makeReqItem(loadLocation("spawns.pci") != null, "§aPCI Spawn", "PCI spawn point"));
+        gui.setItem(0, makeReqItem(getSpawnZonePos1("spawns.all") != null && getSpawnZonePos2("spawns.all") != null, "§7Default Spawn Zone", "All ranks spawn zone"));
+        gui.setItem(1, makeReqItem(getSpawnZonePos1("spawns.police") != null && getSpawnZonePos2("spawns.police") != null, "§bPolice Spawn Zone", "Police/Guard spawn zone"));
+        gui.setItem(2, makeReqItem(getSpawnZonePos1("spawns.prison") != null && getSpawnZonePos2("spawns.prison") != null, "§cPrisoner Spawn Zone", "Prisoner spawn zone"));
+        gui.setItem(3, makeReqItem(getSpawnZonePos1("spawns.pci") != null && getSpawnZonePos2("spawns.pci") != null, "§aPCI Spawn Zone", "PCI spawn zone"));
         gui.setItem(4, makeReqItem(loadLocation("escape-zone.pos1") != null && loadLocation("escape-zone.pos2") != null, "§6Escape Zone", "Prisoner → PCI promotion zone"));
         gui.setItem(5, makeReqItem(getCellZonePos1() != null && getCellZonePos2() != null, "§eCell Zone", "PCI → Prisoner demotion zone"));
         gui.setItem(6, makeReqItem(!getVentLocations().isEmpty(), "§8Vents", "At least 1 vent location"));
@@ -704,16 +708,16 @@ public final class PrisonCore extends JavaPlugin implements CommandExecutor, org
         Location spawnLoc = null;
 
         if (rank == Rank.ADMIN) {
-            spawnLoc = loadLocation("spawns.all");
+            spawnLoc = getRandomSpawnLocation("spawns.all");
         } else if (rank == Rank.GUARD) {
-            spawnLoc = loadLocation("spawns.police");
-            if (spawnLoc == null) spawnLoc = loadLocation("spawns.all");
+            spawnLoc = getRandomSpawnLocation("spawns.police");
+            if (spawnLoc == null) spawnLoc = getRandomSpawnLocation("spawns.all");
         } else if (rank == Rank.PCI) {
-            spawnLoc = loadLocation("spawns.pci");
-            if (spawnLoc == null) spawnLoc = loadLocation("spawns.all");
+            spawnLoc = getRandomSpawnLocation("spawns.pci");
+            if (spawnLoc == null) spawnLoc = getRandomSpawnLocation("spawns.all");
         } else if (rank == Rank.PRISONER) {
-            spawnLoc = loadLocation("spawns.prison");
-            if (spawnLoc == null) spawnLoc = loadLocation("spawns.all");
+            spawnLoc = getRandomSpawnLocation("spawns.prison");
+            if (spawnLoc == null) spawnLoc = getRandomSpawnLocation("spawns.all");
         }
 
         if (spawnLoc != null) {
@@ -723,6 +727,67 @@ public final class PrisonCore extends JavaPlugin implements CommandExecutor, org
             player.teleport(player.getWorld().getSpawnLocation());
             player.sendMessage("§cNo spawn location set for your rank! Teleported to world spawn.");
         }
+    }
+
+    // Spawn Zone helpers (wand-based boxes)
+    public void saveSpawnZone(String spawnName, Location pos1, Location pos2) {
+        getConfig().set(spawnName + ".pos1", locationToMap(pos1));
+        getConfig().set(spawnName + ".pos2", locationToMap(pos2));
+        saveConfig();
+    }
+
+    public Location getSpawnZonePos1(String spawnName) {
+        return getLocationFromConfig(spawnName + ".pos1");
+    }
+
+    public Location getSpawnZonePos2(String spawnName) {
+        return getLocationFromConfig(spawnName + ".pos2");
+    }
+
+    public Location getRandomSpawnLocation(String spawnName) {
+        Location pos1 = getLocationFromConfig(spawnName + ".pos1");
+        Location pos2 = getLocationFromConfig(spawnName + ".pos2");
+        if (pos1 == null || pos2 == null) return null;
+        if (!pos1.getWorld().equals(pos2.getWorld())) return null;
+        World world = pos1.getWorld();
+
+        int minX = Math.min(pos1.getBlockX(), pos2.getBlockX());
+        int maxX = Math.max(pos1.getBlockX(), pos2.getBlockX());
+        int minZ = Math.min(pos1.getBlockZ(), pos2.getBlockZ());
+        int maxZ = Math.max(pos1.getBlockZ(), pos2.getBlockZ());
+
+        java.util.Random rand = new java.util.Random();
+        for (int attempts = 0; attempts < 20; attempts++) {
+            int rx = minX + rand.nextInt(maxX - minX + 1);
+            int rz = minZ + rand.nextInt(maxZ - minZ + 1);
+            org.bukkit.block.Block highest = world.getHighestBlockAt(rx, rz);
+            if (highest != null && !highest.getType().isAir()) {
+                return highest.getLocation().add(0.5, 1, 0.5);
+            }
+        }
+        // Fallback: center of zone at surface
+        int cx = (minX + maxX) / 2;
+        int cz = (minZ + maxZ) / 2;
+        org.bukkit.block.Block center = world.getHighestBlockAt(cx, cz);
+        if (center != null && !center.getType().isAir()) {
+            return center.getLocation().add(0.5, 1, 0.5);
+        }
+        return new Location(world, cx + 0.5, Math.max(pos1.getY(), pos2.getY()), cz + 0.5);
+    }
+
+    public ItemStack makeSpawnWand(String name, String displayName, String description) {
+        ItemStack wand = new ItemStack(Material.WOODEN_AXE);
+        ItemMeta meta = wand.getItemMeta();
+        if (meta != null) {
+            meta.displayName(net.kyori.adventure.text.Component.text(displayName));
+            meta.lore(List.of(
+                net.kyori.adventure.text.Component.text("§7Right-click: Set position 1"),
+                net.kyori.adventure.text.Component.text("§7Left-click: Set position 2"),
+                net.kyori.adventure.text.Component.text("§7" + description)
+            ));
+            wand.setItemMeta(meta);
+        }
+        return wand;
     }
 
     // Vent System (with IDs)
@@ -845,8 +910,8 @@ public final class PrisonCore extends JavaPlugin implements CommandExecutor, org
 
     // Guard Whistle factory
     public static ItemStack createWhistle() {
-        ItemStack shears = new ItemStack(Material.SHEARS);
-        ItemMeta meta = shears.getItemMeta();
+        ItemStack horn = new ItemStack(Material.GOAT_HORN);
+        ItemMeta meta = horn.getItemMeta();
         if (meta != null) {
             meta.displayName(net.kyori.adventure.text.Component.text("§bGuard Whistle", net.kyori.adventure.text.format.NamedTextColor.AQUA, net.kyori.adventure.text.format.TextDecoration.BOLD));
             List<net.kyori.adventure.text.Component> lore = List.of(
@@ -854,9 +919,9 @@ public final class PrisonCore extends JavaPlugin implements CommandExecutor, org
                 net.kyori.adventure.text.Component.text("§7Makes prisoners glow for 5 seconds.")
             );
             meta.lore(lore);
-            shears.setItemMeta(meta);
+            horn.setItemMeta(meta);
         }
-        return shears;
+        return horn;
     }
 
     // Prison Key factory (CustomModelData: 1001 for keyskin.png)

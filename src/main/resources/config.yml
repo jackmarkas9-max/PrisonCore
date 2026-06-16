@@ -8,12 +8,20 @@ night-length: 6000
 backup:
   radius: 25
 
-# Spawn Locations (Populated via @setallspawn, @setpolicespawn, @setprisonspawn, @setPCIspawn)
+# Spawn Zones (Set with /setallspawn etc. — each is a pos1/pos2 cuboid box)
 spawns:
-  all: null
-  police: null
-  prison: null
-  pci: null
+  all:
+    pos1: null
+    pos2: null
+  police:
+    pos1: null
+    pos2: null
+  prison:
+    pos1: null
+    pos2: null
+  pci:
+    pos1: null
+    pos2: null
 
 # Escape Zone (Set with @wandescape)
 escape-zone:

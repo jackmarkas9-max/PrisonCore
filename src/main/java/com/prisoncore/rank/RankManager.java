@@ -155,7 +155,7 @@ public class RankManager {
 
     private boolean hasWhistle(Player player) {
         for (org.bukkit.inventory.ItemStack item : player.getInventory().getContents()) {
-            if (item != null && item.getType() == org.bukkit.Material.SHEARS) {
+            if (item != null && item.getType() == org.bukkit.Material.GOAT_HORN) {
                 org.bukkit.inventory.meta.ItemMeta meta = item.getItemMeta();
                 if (meta != null && meta.hasDisplayName() && meta.getDisplayName().contains("Whistle")) {
                     return true;
