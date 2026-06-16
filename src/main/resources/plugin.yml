@@ -77,9 +77,9 @@ commands:
     description: Set the prison spawn.
     usage: /setprisonspawn
     permission: prisoncore.admin
-  setPCIspawn:
+  setpcispawn:
     description: Set the PCI spawn.
-    usage: /setPCIspawn
+    usage: /setpcispawn
     permission: prisoncore.admin
   mode:
     description: Toggle build/prison mode.

@@ -441,7 +441,7 @@ public final class PrisonCore extends JavaPlugin implements CommandExecutor, org
     }
 
     private void showReqsGUI(Player admin) {
-        org.bukkit.inventory.Inventory gui = Bukkit.createInventory(null, 18, net.kyori.adventure.text.Component.text("§8Requirements Checklist"));
+        org.bukkit.inventory.Inventory gui = Bukkit.createInventory(null, 18, "§8Requirements Checklist");
 
         // Check each requirement
         gui.setItem(0, makeReqItem(getSpawnZonePos1("spawns.all") != null && getSpawnZonePos2("spawns.all") != null, "§7Default Spawn Zone", "All ranks spawn zone"));
@@ -456,7 +456,7 @@ public final class PrisonCore extends JavaPlugin implements CommandExecutor, org
         ItemStack fill = new ItemStack(Material.BLACK_STAINED_GLASS_PANE);
         ItemMeta fillMeta = fill.getItemMeta();
         if (fillMeta != null) {
-            fillMeta.displayName(net.kyori.adventure.text.Component.text(""));
+            fillMeta.setDisplayName("");
             fill.setItemMeta(fillMeta);
         }
         for (int i = 0; i < 18; i++) {
@@ -473,10 +473,10 @@ public final class PrisonCore extends JavaPlugin implements CommandExecutor, org
         if (meta != null) {
             String color = done ? "§a✔ " : "§c✘ ";
             String status = done ? "§aSET" : "§cNOT SET";
-            meta.displayName(net.kyori.adventure.text.Component.text(color + title));
-            meta.lore(List.of(
-                net.kyori.adventure.text.Component.text("§7" + description),
-                net.kyori.adventure.text.Component.text("§7Status: " + status)
+            meta.setDisplayName(color + title);
+            meta.setLore(List.of(
+                "§7" + description,
+                "§7Status: " + status
             ));
             item.setItemMeta(meta);
         }
