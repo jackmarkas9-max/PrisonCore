@@ -482,6 +482,56 @@ public class PrisonListener implements Listener {
 
         String title = net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer.legacySection().serialize(event.getView().title());
 
+        // Dark Shop GUI - buy items
+        if (title.contains("Dark Shop")) {
+            event.setCancelled(true);
+            ItemStack clicked = event.getCurrentItem();
+            if (clicked == null || !clicked.hasItemMeta()) return;
+            ItemMeta meta = clicked.getItemMeta();
+            if (meta == null || !meta.hasDisplayName()) return;
+            String name = meta.getDisplayName().replaceAll("§.", "");
+            Player player = (Player) event.getWhoClicked();
+            double bal = plugin.getEconomyManager().getBalance(player);
+            if (name.contains("Screwdriver")) {
+                if (bal < 150000) {
+                    player.sendMessage("§cYou need $150,000!");
+                    player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_NO, 0.5f, 1.0f);
+                    return;
+                }
+                if (PrisonCore.hasItem(player, Material.SHEARS, "Screwdriver")) {
+                    player.sendMessage("§cYou already have a Screwdriver!");
+                    return;
+                }
+                plugin.getEconomyManager().subtractBalance(player.getUniqueId(), 150000);
+                player.getInventory().addItem(PrisonCore.createScrewdriver());
+                player.sendMessage("§aYou bought a Screwdriver!");
+                player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 0.5f, 1.5f);
+            } else if (name.contains("Police Key")) {
+                if (bal < 200000) {
+                    player.sendMessage("§cYou need $200,000!");
+                    player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_NO, 0.5f, 1.0f);
+                    return;
+                }
+                if (PrisonCore.hasItem(player, Material.TRIPWIRE_HOOK, "Police Key")) {
+                    player.sendMessage("§cYou already have a Police Key!");
+                    return;
+                }
+                plugin.getEconomyManager().subtractBalance(player.getUniqueId(), 200000);
+                ItemStack policeKey = new ItemStack(Material.TRIPWIRE_HOOK);
+                ItemMeta km = policeKey.getItemMeta();
+                if (km != null) {
+                    km.displayName(net.kyori.adventure.text.Component.text("§6Police Key"));
+                    km.setCustomModelData(1002);
+                    km.lore(List.of(net.kyori.adventure.text.Component.text("§7A master key for security doors")));
+                    policeKey.setItemMeta(km);
+                }
+                player.getInventory().addItem(policeKey);
+                player.sendMessage("§aYou bought a Police Key!");
+                player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 0.5f, 1.5f);
+            }
+            return;
+        }
+
         // Vent System GUI - click to teleport
         if (title.contains("Vent System")) {
             event.setCancelled(true);
@@ -564,7 +614,7 @@ public class PrisonListener implements Listener {
     public void onInventoryDrag(InventoryDragEvent event) {
         if (!(event.getWhoClicked() instanceof Player)) return;
         String title = net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer.legacySection().serialize(event.getView().title());
-        if (title.contains("Checking:") || title.contains("Vent System")) {
+        if (title.contains("Checking:") || title.contains("Vent System") || title.contains("Dark Shop")) {
             event.setCancelled(true);
         }
     }

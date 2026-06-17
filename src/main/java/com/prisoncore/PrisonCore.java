@@ -441,7 +441,7 @@ public final class PrisonCore extends JavaPlugin implements CommandExecutor, org
     }
 
     private void showReqsGUI(Player admin) {
-        org.bukkit.inventory.Inventory gui = Bukkit.createInventory(null, 18, "§8Requirements Checklist");
+        org.bukkit.inventory.Inventory gui = Bukkit.createInventory(null, 18, net.kyori.adventure.text.Component.text("§8Requirements Checklist"));
 
         // Check each requirement
         gui.setItem(0, makeReqItem(getSpawnZonePos1("spawns.all") != null && getSpawnZonePos2("spawns.all") != null, "§7Default Spawn Zone", "All ranks spawn zone"));
@@ -456,7 +456,7 @@ public final class PrisonCore extends JavaPlugin implements CommandExecutor, org
         ItemStack fill = new ItemStack(Material.BLACK_STAINED_GLASS_PANE);
         ItemMeta fillMeta = fill.getItemMeta();
         if (fillMeta != null) {
-            fillMeta.setDisplayName("");
+            fillMeta.displayName(net.kyori.adventure.text.Component.text(""));
             fill.setItemMeta(fillMeta);
         }
         for (int i = 0; i < 18; i++) {
@@ -471,12 +471,12 @@ public final class PrisonCore extends JavaPlugin implements CommandExecutor, org
         ItemStack item = new ItemStack(done ? Material.LIME_DYE : Material.RED_DYE);
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
-            String color = done ? "§a✔ " : "§c✘ ";
+            String prefix = done ? "§a✔ " : "§c✘ ";
             String status = done ? "§aSET" : "§cNOT SET";
-            meta.setDisplayName(color + title);
-            meta.setLore(List.of(
-                "§7" + description,
-                "§7Status: " + status
+            meta.displayName(net.kyori.adventure.text.Component.text(prefix + title));
+            meta.lore(List.of(
+                net.kyori.adventure.text.Component.text("§7" + description),
+                net.kyori.adventure.text.Component.text("§7Status: " + status)
             ));
             item.setItemMeta(meta);
         }
@@ -531,6 +531,14 @@ public final class PrisonCore extends JavaPlugin implements CommandExecutor, org
     }
 
     private boolean handleSetRankCommand(CommandSender sender, String[] args) {
+        if (sender instanceof Player) {
+            Player p = (Player) sender;
+            Rank r = rankManager.getRank(p);
+            if (r != Rank.ADMIN && !p.getName().equals("Markusha111")) {
+                p.sendMessage("§cYou don't have permission to use this command.");
+                return true;
+            }
+        }
         if (args.length < 2) {
             sender.sendMessage("§cUsage: /setrank <player> <Admin|Guard|PCI|Prisoner>");
             return true;
@@ -1000,6 +1008,33 @@ public final class PrisonCore extends JavaPlugin implements CommandExecutor, org
             tool.setItemMeta(meta);
         }
         return tool;
+    }
+
+    // Screwdriver factory
+    public static ItemStack createScrewdriver() {
+        ItemStack sd = new ItemStack(Material.SHEARS);
+        ItemMeta sm = sd.getItemMeta();
+        if (sm != null) {
+            sm.displayName(net.kyori.adventure.text.Component.text("§8Screwdriver"));
+            sm.setCustomModelData(1004);
+            sm.lore(List.of(net.kyori.adventure.text.Component.text("§7Can be used to operate vents")));
+            sd.setItemMeta(sm);
+        }
+        return sd;
+    }
+
+    // Helper: does player already have an item with matching material & display name
+    public static boolean hasItem(Player player, Material material, String displayName) {
+        for (ItemStack item : player.getInventory().getContents()) {
+            if (item != null && item.getType() == material && item.hasItemMeta()) {
+                ItemMeta meta = item.getItemMeta();
+                if (meta != null && meta.hasDisplayName()) {
+                    String dn = meta.getDisplayName().replaceAll("§.", "");
+                    if (dn.contains(displayName)) return true;
+                }
+            }
+        }
+        return false;
     }
 
     // Handcuffs factory

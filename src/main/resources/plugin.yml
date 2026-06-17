@@ -56,67 +56,51 @@ commands:
   give:
     description: Give money to a player.
     usage: /give money <player> <amount>
-    permission: prisoncore.admin
   day:
     description: Set time to day.
     usage: /day
-    permission: prisoncore.admin
   night:
     description: Set time to night.
     usage: /night
-    permission: prisoncore.admin
   setallspawn:
     description: Set the default spawn.
     usage: /setallspawn
-    permission: prisoncore.admin
   setpolicespawn:
     description: Set the police spawn.
     usage: /setpolicespawn
-    permission: prisoncore.admin
   setprisonspawn:
     description: Set the prison spawn.
     usage: /setprisonspawn
-    permission: prisoncore.admin
   setpcispawn:
     description: Set the PCI spawn.
     usage: /setpcispawn
-    permission: prisoncore.admin
   mode:
     description: Toggle build/prison mode.
     usage: /mode <build|prison>
-    permission: prisoncore.admin
   save:
     description: Backup blocks around you.
     usage: /save
-    permission: prisoncore.admin
   wandescape:
     description: Get the escape zone wand.
     usage: /wandescape
-    permission: prisoncore.admin
   escape:
     description: Force-escape a player.
     usage: /escape <player>
-    permission: prisoncore.admin
   setvent:
     description: Add a vent with ID.
     usage: /setvent <id>
-    permission: prisoncore.admin
   clearmoney:
     description: Clear a player's money.
     usage: /clearmoney <player>
-    permission: prisoncore.admin
   setcell:
     description: Get the cell zone wand.
     usage: /setcell
-    permission: prisoncore.admin
   checkguy:
     description: View and confiscate a player's inventory.
     usage: /checkguy <player>
-    permission: prisoncore.admin
   reqs:
     description: Show setup requirements status.
     usage: /reqs
-    permission: prisoncore.admin
   darkshop:
     description: Open the dark shop (PCI & Prisoners only).
     usage: /darkshop
